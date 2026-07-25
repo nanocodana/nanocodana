@@ -2,14 +2,14 @@
   "name": "@nanocodana/nodejs",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@nanocodana/core": "*",
+    "@nanocodana/core": "^0.1.0",
     "ai": "^6.0.154",
     "chokidar": "^5.0.0",
     "fast-glob": "^3.3.3",
@@ -24,5 +24,41 @@
     "@types/node": "^25.5.2",
     "@types/turndown": "^5.0.6",
     "typescript": "^6.0.2"
-  }
+  },
+  "description": "Run a NanoCodana coding agent over your real filesystem, with a sandboxed shell that can escalate to the host on approval.",
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "llm",
+    "ai-sdk",
+    "vercel-ai-sdk",
+    "nanocodana",
+    "nodejs",
+    "cli",
+    "filesystem",
+    "ripgrep"
+  ],
+  "license": "MIT",
+  "homepage": "https://nanocodana.github.io",
+  "bugs": {
+    "url": "https://github.com/nanocodana/nanocodana/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanocodana/nanocodana.git",
+    "directory": "packages/adapters/nodejs"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

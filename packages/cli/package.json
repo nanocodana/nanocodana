@@ -1,7 +1,7 @@
 {
   "name": "@nanocodana/cli",
   "version": "0.1.0",
-  "description": "NanoCodana CLI - AI-Powered Coding Assistant",
+  "description": "codana — a terminal coding agent built on NanoCodana: approvals, Agent Skills, MCP, and any model the AI SDK supports.",
   "type": "module",
   "bin": {
     "codana": "./dist/index.js"
@@ -17,10 +17,16 @@
   },
   "keywords": [
     "ai",
-    "coding",
-    "assistant",
+    "agent",
+    "coding-agent",
+    "llm",
+    "ai-sdk",
+    "vercel-ai-sdk",
+    "nanocodana",
     "cli",
-    "mcp"
+    "terminal",
+    "codana",
+    "repl"
   ],
   "author": "",
   "license": "MIT",
@@ -28,7 +34,7 @@
     "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/openai": "^3.0.67",
     "@ai-sdk/openai-compatible": "^2.0.48",
-    "@nanocodana/nodejs": "*",
+    "@nanocodana/nodejs": "^0.1.0",
     "ai": "^6.0.154",
     "cli-highlight": "^2.1.11",
     "conf": "^15.1.0",
@@ -47,5 +53,17 @@
     "ink-testing-library": "^4.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
+  },
+  "homepage": "https://nanocodana.github.io",
+  "bugs": {
+    "url": "https://github.com/nanocodana/nanocodana/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanocodana/nanocodana.git",
+    "directory": "packages/cli"
   }
 }

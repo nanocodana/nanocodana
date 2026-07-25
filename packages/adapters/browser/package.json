@@ -15,7 +15,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@nanocodana/core": "*",
+    "@nanocodana/core": "^0.1.0",
     "ai": "^6.0.154",
     "minimatch": "^10.2.5",
     "zod": "^4.3.6"
@@ -25,5 +25,32 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "description": "Run a full NanoCodana coding agent entirely in the browser, over an in-memory or IndexedDB filesystem. No server, no backend.",
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "llm",
+    "ai-sdk",
+    "vercel-ai-sdk",
+    "nanocodana",
+    "browser",
+    "indexeddb",
+    "byok",
+    "client-side"
+  ],
+  "license": "MIT",
+  "homepage": "https://nanocodana.github.io",
+  "bugs": {
+    "url": "https://github.com/nanocodana/nanocodana/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanocodana/nanocodana.git",
+    "directory": "packages/adapters/browser"
+  }
 }

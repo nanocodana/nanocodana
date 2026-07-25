@@ -26,5 +26,32 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "description": "The NanoCodana agent engine — file tools, a virtual shell, Agent Skills, MCP, and tool-approval gating over any filesystem. Built on the Vercel AI SDK.",
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "llm",
+    "ai-sdk",
+    "vercel-ai-sdk",
+    "nanocodana",
+    "mcp",
+    "agent-skills",
+    "filesystem",
+    "tool-calling"
+  ],
+  "license": "MIT",
+  "homepage": "https://nanocodana.github.io",
+  "bugs": {
+    "url": "https://github.com/nanocodana/nanocodana/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanocodana/nanocodana.git",
+    "directory": "packages/core"
+  }
 }

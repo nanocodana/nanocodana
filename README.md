@@ -66,8 +66,10 @@ Read more about the default tool set and the sandboxed shell in the
 
 ## Anywhere else (core)
 
-`@nanocodana/core` is the same agent with the runtime unplugged — hand it your
-own filesystem or sandbox and it runs inside anything:
+`@nanocodana/core` is the same agent with the runtime unplugged. It imports no
+Node builtins and touches no DOM, so it runs wherever JavaScript does — a
+**serverless function**, an edge runtime, a container, a remote sandbox, or
+embedded in your own app — over whatever storage you hand it:
 
 ```ts
 import { NanoCodana } from '@nanocodana/core'
@@ -79,7 +81,30 @@ const agent = new NanoCodana({
 })
 ```
 
-Read more about custom filesystems and sandboxes in the
+### In a serverless function
+
+There's no disk to work on, so the files usually live in a database. Seed them
+with `initialFiles` — `content` can be a function, so each file is fetched only
+when the agent opens it — and persist every edit back through `onFilesChange`:
+
+```ts
+const paths = await db.listPaths(projectId)        // cheap: names only
+
+const agent = new NanoCodana({
+  model,
+  initialFiles: paths.map((path) => ({
+    path,
+    content: () => db.readFile(projectId, path),   // fetched on first read
+  })),
+  onFilesChange: (changes) => persist(projectId, changes),
+})
+```
+
+A whole project costs nothing to seed; the agent pays only for what it touches.
+Runnable version: [apps/serverless](./apps/serverless).
+
+Read more about custom filesystems, sandboxes, and the ready-made `just-bash`
+backends (in-memory, real-disk, copy-on-write overlay, mountable) in the
 [Core docs](https://nanocodana.github.io/docs/core/).
 
 ## Packages

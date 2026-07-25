@@ -1,0 +1,7 @@
+# Local secrets for `wrangler dev`. Copy to .dev.vars (gitignored) and fill in.
+# On a deployed Worker use `wrangler secret put ANTHROPIC_API_KEY` instead —
+# never put a real key in wrangler.jsonc, which is committed.
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: defaults to claude-sonnet-4-5
+# NANOCODANA_MODEL_ID=claude-sonnet-4-5

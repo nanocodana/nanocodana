@@ -137,10 +137,16 @@ export interface NanoCodanaConfig {
    * Whether to include the in-memory virtual Bash tool (powered by just-bash).
    * Defaults to true for backward compatibility.
    *
-   * Set to false in browser apps that don't need shell access. When false,
-   * the Bash tool is not registered AND the just-bash chunk is never loaded
-   * (the dynamic import in Bash.execute is the only reference). Saves
-   * ~157 KB gzipped on initial paint.
+   * Set to false in browser apps that don't need shell access. When false, the
+   * Bash tool is not registered and the just-bash chunk is never *fetched* — the
+   * dynamic import in Bash.execute is the only reference. With a code-splitting
+   * bundler (webpack, Vite, Next.js) that saves ~157 KB gzipped on initial paint.
+   *
+   * It does NOT shrink single-file bundles. Bundlers cannot eliminate a reachable
+   * dynamic import based on a runtime flag, so an esbuild/Workers build still
+   * contains just-bash either way (verified: byte-identical output). That matters
+   * on workerd, where just-bash's static `node:zlib` import is a boot failure —
+   * see apps/cloudflare for the fix.
    *
    * Note: this only controls the *virtual* Bash backed by just-bash. The
    * sandbox-backed Bash tool (when a Sandbox is provided) is unaffected.

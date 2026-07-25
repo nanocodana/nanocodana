@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "nanocodana-agent",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-07-01",
+
+  // No "compatibility_flags": ["nodejs_compat"] — this Worker runs with zero Node
+  // compatibility surface. That takes one alias to achieve.
+  //
+  // @nanocodana/core imports no Node builtins, but its virtual shell
+  // (`just-bash/browser`) statically imports node:zlib for four commands: gzip,
+  // gunzip, zcat, and `rg -z`. Browser bundlers auto-polyfill node:zlib so this
+  // is invisible there; workerd doesn't, and a *static* import means the Worker
+  // refuses to start at all:
+  //
+  //   ✘ Uncaught Error: No such module "node:zlib"
+  //   ✘ The Workers runtime failed to start.
+  //
+  // Aliasing the module to a stub satisfies the import without a polyfill. Those
+  // four commands throw a clear error; everything else — Bash, Grep, Glob, the
+  // file tools — works untouched. See src/zlib-shim.js.
+  // A stub, not a real gzip: making the compression commands genuinely work
+  // needs more than a zlib replacement — see "Why the shim is a stub, not a
+  // polyfill" in the README.
+  "alias": {
+    "node:zlib": "./src/zlib-shim.js"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nanocodana-files",
+      // Placeholder: local dev (`wrangler dev`) never contacts Cloudflare and
+      // ignores this id. Run `wrangler d1 create nanocodana-files` and paste the
+      // real id here before `npm run deploy`.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

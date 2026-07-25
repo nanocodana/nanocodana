@@ -66,8 +66,9 @@ async function readSandboxContent(sandbox: Sandbox, path: string): Promise<strin
 function createFsTools(fs: ToolFileSystem, virtualBash: boolean): Record<string, Tool> {
   // Cached Bash instance promise — first call to Bash.execute resolves it
   // (loading the just-bash chunk), subsequent calls hit the cache. When
-  // virtualBash is false this closure is never reached, so the bundler can
-  // tree-shake the dynamic-import boundary away.
+  // virtualBash is false this closure is never reached, so a code-splitting
+  // bundler never *fetches* the chunk. It is still present in the build: no
+  // bundler can drop a reachable dynamic import based on a runtime flag.
   let bashPromise: Promise<BashInstance> | undefined
   function getBash(): Promise<BashInstance> {
     if (!bashPromise) {

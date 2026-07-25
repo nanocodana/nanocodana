@@ -194,6 +194,9 @@ See [Configuration](https://nanocodana.github.io/docs/configuration) and
 - **Serverless** ([apps/serverless](./apps/serverless), `npm start`) — run the
   agent in a function with your files in a database: hydrated lazily per
   invocation (only the files it touches are fetched) and persisted back.
+- **Cloudflare Workers** ([apps/cloudflare](./apps/cloudflare), `npm run dev`) —
+  the same agent at the edge, with the project in D1 and no filesystem at all.
+  Runs on `workerd` locally with no Cloudflare account needed.
 - **Minimal examples** — [apps/web](./apps/web) (vanilla Vite, BYOK agent fully
   in the tab), [apps/nextjs](./apps/nextjs) (`@nanocodana/core` behind an API
   route with `useChat`), [apps/node](./apps/node) (chat loop, skills, image-gen

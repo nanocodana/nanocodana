@@ -1,0 +1,4 @@
+.dev.vars
+.wrangler/
+dist-worker/
+node_modules/

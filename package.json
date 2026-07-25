@@ -1,0 +1,29 @@
+{
+  "name": "nanocodana",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/adapters/*",
+    "packages/cli",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -ws --if-present",
+    "dev": "npm run dev --workspaces --if-present",
+    "testbed:openai": "npm run openai:node -w apps/testbed",
+    "testbed:ollama": "npm run ollama:node -w apps/testbed",
+    "dev:sharables": "npm run dev -w apps/sharables -- --port 3004",
+    "dev:website": "npm run dev -w apps/website -- --port 3005"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  },
+  "comment:overrides": "@ai-sdk-tool/parser exact-pins @ai-sdk/provider@3.0.10 while the rest of the tree is on 3.0.13; that nested duplicate breaks core's declaration emit (TS2883) and risks two 3.x provider copies at runtime. Bump just parser's copy to match.",
+  "overrides": {
+    "@ai-sdk-tool/parser": {
+      "@ai-sdk/provider": "3.0.13"
+    }
+  }
+}

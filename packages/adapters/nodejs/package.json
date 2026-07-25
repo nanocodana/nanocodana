@@ -1,0 +1,28 @@
+{
+  "name": "@nanocodana/nodejs",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@nanocodana/core": "*",
+    "ai": "^6.0.154",
+    "chokidar": "^5.0.0",
+    "fast-glob": "^3.3.3",
+    "just-bash": "^2.14.1",
+    "minimatch": "^10.2.5",
+    "turndown": "^7.2.4"
+  },
+  "optionalDependencies": {
+    "@vscode/ripgrep": "^1.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/turndown": "^5.0.6",
+    "typescript": "^6.0.2"
+  }
+}

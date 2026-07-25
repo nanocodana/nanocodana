@@ -1,0 +1,29 @@
+{
+  "name": "@nanocodana/browser",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@nanocodana/core": "*",
+    "ai": "^6.0.154",
+    "minimatch": "^10.2.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  },
+  "files": [
+    "dist"
+  ]
+}

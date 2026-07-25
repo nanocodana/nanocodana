@@ -1,0 +1,22 @@
+{
+  "name": "nanocodana-web-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@browser-ai/core": "^2.1.12",
+    "@browser-ai/transformers-js": "^2.2.2",
+    "@nanocodana/browser": "*",
+    "@nanocodana/core": "*",
+    "ai": "^6.0.154",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "vite": "^8.0.8"
+  }
+}

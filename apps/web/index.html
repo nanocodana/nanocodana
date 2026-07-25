@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NanoCodana - Web Example</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: #252526;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #3e3e42;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: #252526;
+      border-right: 1px solid #3e3e42;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      color: #858585;
+      margin-bottom: 0.5rem;
+    }
+
+    .file-list {
+      list-style: none;
+    }
+
+    .file-item {
+      padding: 0.5rem;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .file-item:hover {
+      background: #2a2d2e;
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+    }
+
+    .message {
+      margin-bottom: 1.5rem;
+    }
+
+    .message.user {
+      text-align: right;
+    }
+
+    .message-content {
+      display: inline-block;
+      max-width: 80%;
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: left;
+    }
+
+    .message.user .message-content {
+      background: #0e639c;
+    }
+
+    .message.assistant .message-content {
+      background: #2d2d30;
+    }
+
+    .message.system .message-content {
+      background: #1a472a;
+      font-size: 0.875rem;
+    }
+
+    .message.tool .message-content {
+      background: #3a2d1a;
+      border-left: 3px solid #d4a259;
+    }
+
+    .message.tool-result .message-content {
+      background: #1a2d3a;
+      border-left: 3px solid #59a2d4;
+    }
+
+    .tool-header {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #d4a259;
+    }
+
+    .message.tool-result .tool-header {
+      color: #59a2d4;
+    }
+
+    .tool-params {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #b0b0b0;
+      background: #1e1e1e;
+      padding: 0.5rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    .input-area {
+      border-top: 1px solid #3e3e42;
+      padding: 1rem 2rem;
+      background: #252526;
+    }
+
+    .input-container {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.75rem;
+      background: #3c3c3c;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      color: #d4d4d4;
+      font-size: 0.875rem;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      background: #0e639c;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    button:hover {
+      background: #1177bb;
+    }
+
+    button:disabled {
+      background: #3e3e42;
+      cursor: not-allowed;
+    }
+
+    .config {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #2d2d30;
+      border-radius: 4px;
+    }
+
+    .config label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      color: #858585;
+    }
+
+    .config input {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>NanoCodana</h1>
+  </div>
+
+  <div class="container">
+    <div class="sidebar">
+      <h2>Files</h2>
+      <ul class="file-list" id="fileList">
+        <li class="file-item">No files yet</li>
+      </ul>
+    </div>
+
+    <div class="main">
+      <div class="chat" id="chat">
+        <div class="config">
+          <label for="apiKey">Anthropic API Key:</label>
+          <input type="password" id="apiKey" placeholder="sk-ant-...">
+          <div style="margin-top: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="checkbox" id="persist" checked>
+              <span>Persist files in IndexedDB (survives page refresh)</span>
+            </label>
+          </div>
+          <small style="color: #858585;">Your API key is only used in your browser and never sent to our servers.</small>
+        </div>
+        <div class="message system">
+          <div class="message-content">
+            Welcome! I'm a coding agent that can help you write code. Try asking me to create a file or write some code!
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-container">
+          <input type="text" id="input" placeholder="Ask me to write some code..." />
+          <button id="send">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

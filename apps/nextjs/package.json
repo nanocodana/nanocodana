@@ -1,0 +1,19 @@
+{
+  "name": "nanocodana-nextjs-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.52",
+    "@ai-sdk/react": "^3.0.156",
+    "@nanocodana/core": "*",
+    "ai": "^6.0.154",
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  }
+}

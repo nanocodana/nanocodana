@@ -1,0 +1,7 @@
+.env
+node_modules
+.devtools
+working-dir
+skills-project/src
+forge-workspace
+image-workspace

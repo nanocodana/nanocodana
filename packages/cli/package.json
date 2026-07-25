@@ -1,0 +1,51 @@
+{
+  "name": "@nanocodana/cli",
+  "version": "0.1.0",
+  "description": "NanoCodana CLI - AI-Powered Coding Assistant",
+  "type": "module",
+  "bin": {
+    "codana": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "example-skills"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.tsx",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "coding",
+    "assistant",
+    "cli",
+    "mcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/openai": "^3.0.67",
+    "@ai-sdk/openai-compatible": "^2.0.48",
+    "@nanocodana/nodejs": "*",
+    "ai": "^6.0.154",
+    "cli-highlight": "^2.1.11",
+    "conf": "^15.1.0",
+    "diff": "^9.0.0",
+    "ink": "^7.0.0",
+    "ink-gradient": "^4.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "marked": "^18.0.4",
+    "meow": "^14.1.0",
+    "react": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "ink-testing-library": "^4.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

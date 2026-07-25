@@ -134,12 +134,13 @@ again to resume — see [Tool Approval](https://nanocodana.github.io/docs/tool-a
 | `mcpServers` | MCP servers to connect; their tools are merged in. |
 | `imageModel` | Optional AI SDK `ImageModel`. Exposes a `GenerateImage` tool that writes images to the filesystem. |
 | `imageOutputDir` | Where images a multimodal `model` emits directly are auto-saved. Default `generated`. |
+| `initialFiles` | Seed the agent's filesystem with `{ path, content }` entries. `content` may be a function (sync or async) to hydrate lazily on first read. Not on `NodeAgent`, which works against a real directory. |
 | `onFilesChange` | Callback fired with every file the agent creates, edits, or deletes — the hook for mirroring the agent's work into your own UI or store. |
 | `compact` | Compact tool descriptions + prompt to save tokens. |
 | `stopWhen` | When the tool loop should stop. |
 | `virtualBash` | Include the in-memory Bash tool (default `true`). `false` drops it and its ~157 KB chunk. |
 | `workingDirectory` | *(Node)* Root directory for the file tools. |
-| `persist` / `initialFiles` | *(Browser)* IndexedDB vs in-memory; seed files. |
+| `persist` / `persistKey` | *(Browser)* IndexedDB (default) vs in-memory only, and which store to use. |
 | `fs` / `sandbox` | *(Core)* Your own filesystem or sandbox backend. |
 
 Nearly everything can also be changed **per call** — `stream()` accepts the same

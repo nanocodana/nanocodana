@@ -1,6 +1,6 @@
 {
   "name": "@nanocodana/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "codana — a terminal coding agent built on NanoCodana: approvals, Agent Skills, MCP, and any model the AI SDK supports.",
   "type": "module",
   "bin": {

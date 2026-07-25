@@ -1,0 +1,65 @@
+# @nanocodana/core
+
+The [NanoCodana](https://github.com/nanocodana/nanocodana) agent engine — the
+agent loop, the file tools, a virtual shell, Agent Skills, MCP, and
+tool-approval gating, built on the [Vercel AI SDK](https://sdk.vercel.ai).
+
+It imports no Node builtins and touches no DOM, so it runs wherever JavaScript
+does — a serverless function, an edge runtime, a container, a remote sandbox, or
+embedded in your own app — over whatever storage you hand it.
+
+> Most apps want an adapter instead: **[@nanocodana/browser](https://www.npmjs.com/package/@nanocodana/browser)**
+> (in-tab, IndexedDB) or **[@nanocodana/nodejs](https://www.npmjs.com/package/@nanocodana/nodejs)**
+> (real disk). Reach for core when the filesystem is yours.
+
+```bash
+npm install @nanocodana/core ai
+```
+
+## Bring your own filesystem
+
+```ts
+import { NanoCodana } from '@nanocodana/core'
+
+const agent = new NanoCodana({
+  model,
+  fs: myFileSystem,      // any IFileSystem
+  // or: sandbox: mySandbox
+})
+
+const result = await agent.stream({
+  messages: [{ role: 'user', content: 'Add a health check route.' }],
+})
+
+for await (const chunk of result.fullStream) {
+  if (chunk.type === 'text-delta') process.stdout.write(chunk.text)
+}
+```
+
+## Or seed files and persist the changes
+
+You usually don't need to implement a filesystem. Seed the built-in in-memory FS
+and mirror every edit back to your store — `content` may be a function (sync or
+async) so a large project hydrates lazily, one file per actual read:
+
+```ts
+const paths = await db.listPaths(projectId)        // cheap: names only
+
+const agent = new NanoCodana({
+  model,
+  initialFiles: paths.map((path) => ({
+    path,
+    content: () => db.readFile(projectId, path),   // fetched on first read
+  })),
+  onFilesChange: (changes) => persist(projectId, changes),
+})
+```
+
+## What you get
+
+`Read` · `Write` · `Edit` · `MultiEdit` · `Delete` · `Glob` · `Grep` · `LS` ·
+`TodoWrite` · a virtual `Bash`, plus optional `GenerateImage`, MCP tools, and
+Anthropic-style Agent Skills discovered from the agent's own filesystem.
+Automatic Anthropic prompt caching is on by default.
+
+**Docs:** <https://nanocodana.github.io/docs/core/> · MIT

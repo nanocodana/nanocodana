@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: CLI smoke tests
+        run: node smoke.test.mjs
+        working-directory: packages/cli
+
+      # The packages are what ship — fail if a manifest would publish something
+      # broken (missing files field, bad exports, unresolvable entry point).
+      - name: Verify publishable tarballs
+        run: |
+          for pkg in packages/core packages/adapters/browser packages/adapters/nodejs packages/cli; do
+            echo "::group::$pkg"
+            (cd "$pkg" && npm pack --dry-run)
+            echo "::endgroup::"
+          done

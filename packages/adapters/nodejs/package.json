@@ -11,7 +11,6 @@
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "//dependencies": "just-bash is a real dependency here, not vendored as in core. On Node its assets resolve inside node_modules exactly as designed, and node:zlib is available — the vendoring in core exists to survive runtimes where neither is true. Core is imported through its /no-bash entry so its own 1.2 MB shell never enters a consumer's bundle alongside this one.",
   "dependencies": {
     "@nanocodana/core": "^0.2.0",
     "ai": "^6.0.154",
@@ -21,7 +20,6 @@
     "minimatch": "^10.2.5",
     "turndown": "^7.2.4"
   },
-  "//optionalDependencies": "Only ripgrep is ours — the Grep tool prefers the native binary and falls back to the JS implementation when it is absent. just-bash declares its own native codecs (@mongodb-js/zstd, node-liblzma) as optional, so `npm install --omit=optional` prunes all three at once and costs only `tar -J`/`--zstd` and native-speed grep.",
   "optionalDependencies": {
     "@vscode/ripgrep": "^1.18.0"
   },

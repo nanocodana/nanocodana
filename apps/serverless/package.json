@@ -6,7 +6,8 @@
   "description": "Run @nanocodana/core in a serverless function: files live in a database, hydrated lazily per invocation and persisted back.",
   "scripts": {
     "start": "node agent-function.js",
-    "chat": "node chat.js"
+    "chat": "node chat.js",
+    "build": "node ../../build/check-example.mjs ."
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

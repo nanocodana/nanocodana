@@ -9,7 +9,8 @@
     "project-skills-demo": "node project-skills-demo.js",
     "image-demo": "node image-demo.js",
     "forge": "node forge-demo.js",
-    "grep-demo": "node grep-agent-demo.js"
+    "grep-demo": "node grep-agent-demo.js",
+    "build": "node ../../build/check-example.mjs ."
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

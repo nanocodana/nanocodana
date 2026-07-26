@@ -38,12 +38,22 @@ jobs:
         run: node shell.test.mjs
         working-directory: packages/cli
 
-      # The published CLI is a single bundled file, and until it was wired into
-      # `npm run build` nothing in CI touched it — the artifact users actually
-      # install was the least-tested thing we shipped. Booting it catches a
-      # bundle that builds but cannot run.
+      # The published CLI is a single bundled file whose workers, sql.js wasm and
+      # CPython all resolve *relative to the bundle*. The matrix above proves the
+      # source tree works, which says nothing about the artifact users install —
+      # so run the identical matrix against the bundle itself.
+      - name: Shell backend matrix (published bundle)
+        run: npm run test:bundle
+        working-directory: packages/cli
+
       - name: CLI bundle boots
         run: node dist/bundle/lib/codana.mjs --version
+        working-directory: packages/cli
+
+      # Packaging invariants: one shell per bundle, no node: imports in the
+      # vendored shell, redistributed licences present, bin and CPython in place.
+      - name: Packaging invariants
+        run: node packaging.test.mjs
         working-directory: packages/cli
 
       # The packages are what ship — fail if a manifest would publish something
@@ -70,3 +80,47 @@ jobs:
             || { echo "::error::CLI tarball is missing CPython (python3 would fail at runtime)"; exit 1; }
           echo "bin and CPython present in $tgz"
           rm -f "$tgz"
+
+  # The bug this whole architecture exists to prevent is a Worker that BUILDS and
+  # then refuses to start: a static `node:zlib` import is fatal at module
+  # instantiation, and wrangler only *warns* about it, so a green build proves
+  # nothing. `packaging.test.mjs` asserts the vendored shell has no node:
+  # imports; this asserts the thing that actually matters — that workerd boots
+  # and core loads inside it.
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      # /health counts rows in `files`, so the table has to exist — a fresh
+      # local D1 has no schema and the query would throw before reaching the
+      # assertion below.
+      - name: Create the local D1 schema
+        working-directory: apps/cloudflare
+        run: npm run db:setup
+
+      # No .dev.vars in CI: /health reports hasApiKey false and never calls a
+      # model. The assertion is coreLoaded, which is false unless the vendored
+      # shell instantiated inside workerd.
+      - name: Boot the Worker on workerd
+        working-directory: apps/cloudflare
+        run: |
+          npx wrangler dev --port 8787 --local > /tmp/wrangler.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -m 2 http://localhost:8787/health > /tmp/health.json; then break; fi
+            sleep 1
+          done
+          cat /tmp/health.json || { echo "::error::Worker never became ready"; cat /tmp/wrangler.log; exit 1; }
+          grep -q '"coreLoaded": true' /tmp/health.json \
+            || { echo "::error::Worker booted but core failed to load"; cat /tmp/wrangler.log; exit 1; }
+          pkill -f 'wrangler dev' || true

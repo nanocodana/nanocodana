@@ -27,9 +27,9 @@
 // -inflation guarantee — see shims/zlib-fflate.js for how that is preserved.
 import { build } from 'esbuild'
 import { copyFile, mkdir, readFile } from 'node:fs/promises'
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, parse } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { packageRootOf } from '../../../build/package-root.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = join(here, '..')
@@ -38,22 +38,6 @@ const outDir = join(pkgRoot, 'dist', 'shell')
 // `import.meta.resolve`, not `require.resolve`: just-bash's exports map defines
 // "./browser" with an `import` condition only, so CJS resolution can't see it.
 const entry = fileURLToPath(import.meta.resolve('just-bash/browser'))
-
-// The exports map also doesn't expose ./package.json, so find the package root
-// by walking up from the entry point rather than requiring the manifest.
-function packageRootOf(startFile, name) {
-  let dir = dirname(startFile)
-  const { root } = parse(dir)
-  while (true) {
-    const manifest = join(dir, 'package.json')
-    if (existsSync(manifest)) {
-      const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
-      if (pkg.name === name) return { dir, pkg }
-    }
-    if (dir === root) throw new Error(`Could not locate the ${name} package root`)
-    dir = dirname(dir)
-  }
-}
 
 const { dir: shellPkgDir, pkg: shellPkg } = packageRootOf(entry, 'just-bash')
 const version = shellPkg.version

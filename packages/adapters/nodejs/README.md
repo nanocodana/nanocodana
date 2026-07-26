@@ -65,6 +65,103 @@ output and binaries. A missing binary only makes search slower — it never brea
 the agent. Force one with `tools: { Grep: createNodeGrepTool(cwd) }` or
 `createRipgrepTool(cwd)`.
 
+## Install size
+
+A default install is **141 MB across 212 packages**. That number surprises
+people, so here is exactly where it goes and what you can do about it.
+
+### Where it comes from
+
+Two dependency trees, and neither is mostly *code*:
+
+| | | |
+|---|---|---|
+| the AI SDK | ~59 MB | `@ai-sdk/*` 15 MB, `ai` 10 MB, `zod` 7 MB, MCP SDK 6 MB |
+| `just-bash` | ~78 MB | the virtual shell and its runtimes |
+
+Inside just-bash, the weight is almost entirely payloads rather than logic:
+
+| | size | what actually loads |
+|---|---|---|
+| `sql.js` | 19 MB | `sql-wasm.wasm` — **660 kB**. The rest is asm.js and debug builds for pre-wasm environments, published to everyone because the package has no `files` field. |
+| CPython (in-tree) | 10 MB | only when you set `python: true` |
+| `@mixmark-io/domino` | 9 MB | turndown's DOM, for WebFetch's HTML→markdown |
+| `quickjs-emscripten` | 4 MB | only when you set `javascript: true` |
+| `@vscode/ripgrep` | 4.4 MB | the `rg` binary |
+| native codecs | ~4 MB | `tar -J` / `tar --zstd` |
+
+The useful way to read that: **80 of the ~83 shell commands are pure JavaScript
+and total under 2 MB.** Three commands — `sqlite3`, `python3`, `js-exec` — plus
+ripgrep account for nearly everything else.
+
+Note that runtime options do **not** change install size. `python` and
+`javascript` default to off and you still get their payloads on disk; just-bash's
+lazy command registry defers *loading*, not *installing*.
+
+### What you can do about it
+
+| | install | packages |
+|---|---|---|
+| default | 141 MB | 212 |
+| `--omit=optional` | **131 MB** | **175** |
+| `--omit=optional`, then delete `node_modules/just-bash/vendor/` | **~121 MB** | 175 |
+
+```bash
+npm install @nanocodana/nodejs --omit=optional
+```
+
+Three payloads are optional. Each unlocks one capability and is dead weight
+otherwise; the shell dynamic-imports all three inside `try`/`catch` and reports
+an actionable error when one is missing, so a pruned install is a supported
+configuration rather than a broken one:
+
+| dependency | unlocks | when absent |
+|---|---|---|
+| `node-liblzma` | `tar -J` (xz) | error naming the package |
+| `@mongodb-js/zstd` | `tar --zstd` | error naming the package |
+| `@vscode/ripgrep` | native ripgrep | falls back to the JS implementation |
+
+just-bash declares the two codecs itself, so only ripgrep is listed here and one
+flag prunes all three. Everything else is unaffected: the other ~80 commands,
+`sqlite3`, `python3`, `js-exec` and every file tool keep working.
+
+CPython is the one payload npm cannot prune, because it ships inside just-bash's
+own tarball rather than as a dependency. It is read only when `python: true`, so
+a deployment that leaves python off can delete it outright.
+
+### If you bundle, none of this ships
+
+Install size is a *build-time* cost. Bundle your app and only the module graph
+travels — the wasm payloads and binaries are loaded from disk at runtime and are
+never part of it:
+
+| | |
+|---|---|
+| bundled as a single file | **3.58 MB** (1.02 MB gzipped) |
+| bundled with code splitting | **387 kB** entry chunk |
+
+With splitting on, just-bash's per-command registry does its job: every command
+becomes its own chunk and arrives on first use, so a run that never shells out
+loads none of them.
+
+What you still ship beside the bundle is only what is loaded by *path*: three
+worker files (~326 kB), `sql-wasm.wasm` (660 kB), and CPython (10 MB) if python
+is enabled. A full deployment with every capability lands around 33 MB; a lean
+one is nearer 5 MB.
+
+### Why this package doesn't vendor the shell
+
+`just-bash` is a normal dependency here, unlike in core. Core vendors it to solve
+a correctness problem that only exists off Node — its browser build statically
+imports `node:zlib`, which makes the module unloadable on workerd. On Node,
+`node:zlib` resolves and just-bash's worker and CPython assets resolve inside
+`node_modules` exactly as designed, so vendoring would only trade install size
+for a second build script reproducing a fragile asset layout.
+
+Core is imported through its `/no-bash` entry, so core's own bundled shell never
+ends up in your build alongside this one — that would be ~1.2 MB that can never
+run, since this adapter supplies its own Bash tool.
+
 ## Built on
 
 [`@nanocodana/core`](https://www.npmjs.com/package/@nanocodana/core) — the same

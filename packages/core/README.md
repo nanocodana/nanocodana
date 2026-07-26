@@ -87,4 +87,32 @@ new NanoCodana({ model, virtualBash: { env: { CI: '1' }, maxCommandCount: 500 } 
 
 Set `virtualBash: false` to drop the tool entirely.
 
+## Size
+
+Installing this package pulls **59 MB across 112 packages**, and essentially all
+of it is the AI SDK — `@ai-sdk/*` 15 MB, `ai` 10 MB, `zod` 7 MB, the MCP SDK
+6 MB. The shell is not among them: it is vendored into this package as a single
+pre-built file, so `just-bash` and its ~78 MB of runtimes never enter your tree.
+
+What reaches a browser is smaller again, because the shell is loaded through a
+dynamic import and every code-splitting bundler puts it in its own chunk:
+
+| | raw | gzipped |
+|---|---|---|
+| initial load | 616 kB | **182 kB** |
+| shell chunk, on first `Bash` call | 1,221 kB | **+338 kB** |
+
+Measured on a real app. Someone who never runs a command never downloads the
+shell. To drop it from the build entirely rather than deferring it, import
+`@nanocodana/core/no-bash` — on a Cloudflare Worker that is 854 KiB → **448 KiB**
+gzipped.
+
+Note that `virtualBash: false` does *not* shrink a single-file build: no bundler
+can eliminate a reachable dynamic import based on a runtime flag. It stops a
+splitting bundler fetching the chunk; only changing the import removes the bytes.
+
+Running on Node? See
+[`@nanocodana/nodejs`](https://www.npmjs.com/package/@nanocodana/nodejs#install-size),
+which documents its own larger footprint and how to prune it.
+
 **Docs:** <https://nanocodana.github.io/docs/core/> · MIT

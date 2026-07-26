@@ -23,7 +23,6 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const adapter = process.env.NANOCODANA_ADAPTER || '@nanocodana/nodejs'
 const { NodeAgent } = await import(adapter)
@@ -235,44 +234,6 @@ for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
   }
   console.log(`${bounded ? '✓' : '✗'} [core-shell] decompression bomb is bounded mid-inflation`)
   if (!bounded) failures++
-}
-
-// Exactly one shell per bundle.
-//
-// @nanocodana/nodejs supplies its own Bash tool, so core's vendored shell is
-// dead weight for it — but core reaches that shell through a *reachable* dynamic
-// import, and no bundler can drop one of those on a runtime flag. Importing
-// core's default entry anywhere in the adapter therefore adds ~1.2 MB that can
-// never run: measured at 3.58 MB vs 4.81 MB for the same app.
-//
-// The defence is that all of the adapter's files import @nanocodana/core/no-bash
-// instead. That is a convention across a dozen files, and a single stray default
-// import silently undoes it — nothing fails, the bundle just quietly grows. So
-// assert it against the real module graph rather than trusting the convention.
-{
-  const { build } = await import('esbuild')
-  const entry = new URL('../adapters/nodejs/dist/index.js', import.meta.url)
-  const result = await build({
-    entryPoints: [fileURLToPath(entry)],
-    bundle: true,
-    write: false,
-    metafile: true,
-    format: 'esm',
-    platform: 'node',
-    target: 'node20',
-    logLevel: 'silent',
-    external: ['quickjs-emscripten', '@mongodb-js/zstd', 'node-liblzma', '@vscode/ripgrep'],
-  })
-  const inputs = Object.keys(result.metafile.outputs[Object.keys(result.metafile.outputs)[0]].inputs)
-  const leaked = inputs.filter((f) => /core\/dist\/shell\/(bundle|register)/.test(f))
-  const ok = leaked.length === 0
-  console.log(`${ok ? '✓' : '✗'} [bundle] core's shell stays out of @nanocodana/nodejs`)
-  if (!ok) {
-    failures++
-    console.log(`   core's shell reached the adapter's bundle via:`)
-    for (const f of leaked) console.log(`     ${f}`)
-    console.log(`   something imports '@nanocodana/core' instead of '@nanocodana/core/no-bash'`)
-  }
 }
 
 // Host escalation is a capability gate, not just an approval gate: with it off

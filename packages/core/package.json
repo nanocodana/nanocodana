@@ -4,7 +4,6 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "//exports": "./no-bash is the same API without the vendored shell (~1.2 MB). The shell is reached through a reachable dynamic import, which no bundler can drop on a runtime flag, so omitting it needs a separate entry point rather than an option.",
   "exports": {
     ".": {
       "import": "./dist/index.js",

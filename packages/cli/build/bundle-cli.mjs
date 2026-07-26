@@ -14,11 +14,11 @@
 //
 // WHERE THE SHELL ASSETS COME FROM
 //
-// @nanocodana/nodejs already vendors the shell and lays its assets out in
-// dist/shell/lib (workers, sqlite3's wasm) with CPython at its package root.
-// We copy that arrangement rather than re-deriving it from just-bash: the CLI
-// has no just-bash dependency of its own, and duplicating the sql.js inlining
-// here meant two places to keep in step.
+// just-bash, resolved *through* @nanocodana/nodejs rather than from here — see
+// the note above `adapterEntry` for why that distinction is load-bearing. The
+// adapter depends on just-bash normally instead of vendoring it, so this script
+// is the only place in the repo that reproduces just-bash's asset layout, and
+// the only place that bundles at all.
 //
 // THE LAYOUT IS LOAD-BEARING. The shell resolves its worker files and CPython
 // assets by walking relative paths from whichever directory the calling module
@@ -34,17 +34,27 @@
 // silently loses python3, and a chunks/ subdirectory silently loses sqlite3.
 import { build } from 'esbuild'
 import { cp, mkdir, readFile, rm } from 'node:fs/promises'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, parse } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { packageRootOf } from '../../../build/package-root.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = join(here, '..')
 const outDir = join(pkgRoot, 'dist', 'bundle', 'lib')
 const vendorDir = join(pkgRoot, 'vendor')
 
-// Kept out of the bundle — see the header. These remain in `dependencies`.
+// Kept out of the bundle — see the header.
+//
+// THIS IS WHY THE CLI'S MANIFEST LOOKS INVERTED. Everything the CLI imports is
+// inlined into codana.mjs here, so it belongs in `devDependencies`; declaring
+// those as runtime `dependencies` is what made the published install 163 MB.
+// What remains in `dependencies` is only what a bundler cannot inline: native
+// .node addons, and wasm/binaries loaded from disk at runtime. Of those, three
+// are `optionalDependencies` — each unlocks one capability and errors clearly
+// when absent — while quickjs stays required because the CLI enables js-exec by
+// default.
 //
 // sql.js is deliberately NOT here: see BUNDLED_WORKERS below.
 const EXTERNAL = [
@@ -85,20 +95,6 @@ const CJS_GLOBALS_BANNER =
   'const __filename=__f(import.meta.url);' +
   'const __dirname=__d(__filename);'
 
-function packageRootOf(startFile, name) {
-  let dir = dirname(startFile)
-  const { root } = parse(dir)
-  while (true) {
-    const manifest = join(dir, 'package.json')
-    if (existsSync(manifest)) {
-      const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
-      if (pkg.name === name) return dir
-    }
-    if (dir === root) throw new Error(`Could not locate the ${name} package root`)
-    dir = dirname(dir)
-  }
-}
-
 // Resolved THROUGH @nanocodana/nodejs, not from here. The CLI does not depend on
 // just-bash and must not: declaring its own range would let npm satisfy the CLI
 // and the adapter with different copies, and then codana.mjs would contain shell
@@ -108,7 +104,7 @@ function packageRootOf(startFile, name) {
 // Going through the adapter makes the assets provably the same copy that got
 // inlined into the bundle.
 const adapterEntry = fileURLToPath(import.meta.resolve('@nanocodana/nodejs'))
-const shellPkgDir = packageRootOf(
+const { dir: shellPkgDir } = packageRootOf(
   createRequire(adapterEntry).resolve('just-bash'),
   'just-bash',
 )
@@ -156,7 +152,7 @@ for (const { worker, assets } of BUNDLED_WORKERS) {
     banner: { js: CJS_GLOBALS_BANNER },
   })
   for (const [pkg, assetPath] of assets) {
-    const dir = packageRootOf(fileURLToPath(import.meta.resolve(pkg)), pkg)
+    const { dir } = packageRootOf(fileURLToPath(import.meta.resolve(pkg)), pkg)
     await cp(join(dir, ...assetPath.split('/')), join(outDir, assetPath.split('/').pop()))
   }
 }

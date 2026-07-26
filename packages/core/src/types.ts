@@ -202,7 +202,17 @@ export interface VirtualShellOptions {
   defenseInDepth?: boolean | Record<string, unknown>
   /** Values reported by `$$`, `$PPID`, `id`, etc. */
   processInfo?: { pid?: number; ppid?: number; uid?: number; gid?: number }
-  /** Anything else just-bash accepts. */
+  /**
+   * Anything else just-bash accepts, without core having to restate its option
+   * types on every release.
+   *
+   * ⚠️ The cost is that this signature accepts *any* key, so a misspelled option
+   * type-checks and is then silently ignored — `{ pyton: true }` compiles, and
+   * `python3` stays off with no error at construction or at call time. If an
+   * option appears to do nothing, check its spelling against just-bash's
+   * `BashOptions` first. The named fields above are the ones core has verified;
+   * they are the safe set.
+   */
   [option: string]: unknown
 }
 

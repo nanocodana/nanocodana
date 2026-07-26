@@ -17,8 +17,9 @@
   "scripts": {
     "build": "tsc && node build/bundle-cli.mjs",
     "dev": "tsx src/index.tsx",
-    "test": "node smoke.test.mjs && node shell.test.mjs",
-    "prepublishOnly": "npm run build"
+    "test": "node smoke.test.mjs && node shell.test.mjs && npm run test:bundle && node packaging.test.mjs",
+    "prepublishOnly": "npm run build",
+    "test:bundle": "NANOCODANA_ADAPTER=./dist/bundle/lib/codana.mjs node shell.test.mjs"
   },
   "keywords": [
     "ai",
@@ -38,13 +39,11 @@
   "dependencies": {
     "quickjs-emscripten": "*"
   },
-  "//optionalDependencies": "See @nanocodana/nodejs. quickjs-emscripten stays required because js-exec is on by default in the CLI; these three each unlock one capability and degrade with a clear error when absent.",
   "optionalDependencies": {
     "@mongodb-js/zstd": "*",
     "@vscode/ripgrep": "*",
     "node-liblzma": "*"
   },
-  "//devDependencies": "Everything the CLI imports is bundled into dist/bundle by build/bundle-cli.mjs, so it must NOT be a runtime dependency — declaring these as `dependencies` is what made the published install 163 MB. The four `dependencies` above are the only things left external: native .node addons and wasm/binaries a bundler cannot inline.",
   "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/openai": "^3.0.67",

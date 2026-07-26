@@ -1,4 +1,4 @@
-import { createDeleteTool } from '@nanocodana/core'
+import { createDeleteTool } from '@nanocodana/core/no-bash'
 import type { NodeFileSystem } from '../storage/node-fs.js'
 
 export function createNodeDeleteTool(fs: NodeFileSystem) {

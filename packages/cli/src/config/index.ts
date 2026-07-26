@@ -1,5 +1,5 @@
 import Conf from 'conf'
-import type { MCPServerConfig } from '@nanocodana/core'
+import type { MCPServerConfig } from '@nanocodana/nodejs'
 import { getProvider } from '../providers.js'
 
 export interface StoredSession {

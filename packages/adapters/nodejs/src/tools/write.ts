@@ -1,4 +1,4 @@
-import { createWriteTool } from '@nanocodana/core'
+import { createWriteTool } from '@nanocodana/core/no-bash'
 import type { NodeFileSystem } from '../storage/node-fs.js'
 
 export function createNodeWriteTool(fs: NodeFileSystem) {

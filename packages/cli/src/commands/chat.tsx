@@ -3,7 +3,7 @@ import { Box, Text, Static, useApp, useInput } from 'ink'
 import Spinner from 'ink-spinner'
 import TextInput from 'ink-text-input'
 import { NodeAgent } from '@nanocodana/nodejs'
-import type { NanoCodana, Skill } from '@nanocodana/core'
+import type { NanoCodana, Skill } from '@nanocodana/nodejs'
 import {
   getMCPServers,
   setModel as persistModel,

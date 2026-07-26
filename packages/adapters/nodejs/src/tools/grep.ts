@@ -1,5 +1,5 @@
 import { jsonSchema } from 'ai'
-import type { Tool } from '@nanocodana/core'
+import type { Tool } from '@nanocodana/core/no-bash'
 import { promises as fs } from 'fs'
 import { join, relative, sep } from 'path'
 

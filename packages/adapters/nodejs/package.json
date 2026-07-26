@@ -2,32 +2,32 @@
   "name": "@nanocodana/nodejs",
   "version": "0.2.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc && node build/bundle-shell.mjs",
+    "build": "tsc",
     "dev": "tsc --watch"
   },
+  "//dependencies": "just-bash is a real dependency here, not vendored as in core. On Node its assets resolve inside node_modules exactly as designed, and node:zlib is available — the vendoring in core exists to survive runtimes where neither is true. Core is imported through its /no-bash entry so its own 1.2 MB shell never enters a consumer's bundle alongside this one.",
   "dependencies": {
     "@nanocodana/core": "^0.2.0",
     "ai": "^6.0.154",
     "chokidar": "^5.0.0",
     "fast-glob": "^3.3.3",
+    "just-bash": "^3.2.0",
     "minimatch": "^10.2.5",
-    "quickjs-emscripten": "^0.32.0",
     "turndown": "^7.2.4"
   },
-  "//optionalDependencies": "Native addons and prebuilt binaries that each unlock one capability and are dead weight otherwise. The shell dynamic-imports all three inside try/catch and reports an actionable error when one is missing, so `npm install --omit=optional` yields a smaller, working install with `tar -J`/`--zstd` and native ripgrep unavailable. Everything else — the other ~80 commands, sqlite3, python3, js-exec — is unaffected.",
+  "//optionalDependencies": "Only ripgrep is ours — the Grep tool prefers the native binary and falls back to the JS implementation when it is absent. just-bash declares its own native codecs (@mongodb-js/zstd, node-liblzma) as optional, so `npm install --omit=optional` prunes all three at once and costs only `tar -J`/`--zstd` and native-speed grep.",
   "optionalDependencies": {
-    "@mongodb-js/zstd": "^2.0.0",
-    "@vscode/ripgrep": "^1.18.0",
-    "node-liblzma": "^1.1.0"
+    "@vscode/ripgrep": "^1.18.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "@types/turndown": "^5.0.6",
-    "esbuild": "^0.28.1",
-    "just-bash": "^3.2.0",
     "typescript": "^6.0.2"
   },
   "description": "Run a NanoCodana coding agent over your real filesystem, with a sandboxed shell that can escalate to the host on approval.",
@@ -64,7 +64,6 @@
     }
   },
   "files": [
-    "dist",
-    "vendor"
+    "dist"
   ]
 }

@@ -1,5 +1,5 @@
 import { jsonSchema } from 'ai'
-import type { Tool, BashResult, VirtualShellOptions } from '@nanocodana/core'
+import type { Tool, BashResult, VirtualShellOptions } from '@nanocodana/core/no-bash'
 import { spawn } from 'node:child_process'
 
 /**
@@ -131,7 +131,7 @@ export function createNodeBashTool(
   let bashPromise: Promise<any> | undefined
   const getSandbox = () => {
     if (!bashPromise) {
-      bashPromise = import('../shell/lib/bundle.js').then(
+      bashPromise = import('just-bash').then(
         (mod) =>
           new mod.Bash({
             // Caller options first — fs and cwd are the tool's contract and

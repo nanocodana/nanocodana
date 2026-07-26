@@ -18,17 +18,12 @@ export type DefaultToolBackend =
   | { fs: ToolFileSystem; virtualBash?: boolean | VirtualShellOptions }
   | { sandbox: Sandbox; virtualBash?: boolean | VirtualShellOptions }
 
-// The shell is dynamic-imported only inside Bash.execute. This file must NOT
-// import it statically — otherwise bundlers pull it into the main chunk whether
-// or not the user ever calls Bash. `BashInstance` is a structural type rather
-// than a type-import for the same reason: some bundlers treat even a type-only
-// import as a runtime reference.
-type BashInstance = {
-  exec: (
-    command: string,
-    options?: { signal?: AbortSignal }
-  ) => Promise<{ stdout: string; stderr: string; exitCode: number }>
-}
+// This file must never name the shell bundle — not even in a dynamic import.
+// A reachable `import('./shell/bundle.js')` here would land in every consumer's
+// build, including @nanocodana/nodejs, which supplies its own shell and would
+// then ship two. The bundle is bound through shell/registry.js instead, by the
+// side-effect module that only core's default entry point imports.
+import { getShellFactory, type BashInstance } from './shell/registry.js'
 
 async function readSandboxContent(sandbox: Sandbox, path: string): Promise<string> {
   if (sandbox.readFileToBuffer) {
@@ -69,29 +64,28 @@ function createFsTools(
   const shellOptions: VirtualShellOptions =
     typeof virtualBash === 'object' && virtualBash !== null ? virtualBash : {}
 
-  // Cached Bash instance promise — first call to Bash.execute resolves it
-  // (loading the shell chunk), subsequent calls hit the cache. When virtualBash
-  // is false this closure is never reached, so a code-splitting bundler never
-  // *fetches* the chunk. It is still present in the build: no bundler can drop a
-  // reachable dynamic import based on a runtime flag.
-  //
-  // './shell/bundle.js' is the vendored, Node-free build of just-bash generated
-  // by build/bundle-shell.mjs. Importing just-bash directly here would reintroduce
-  // its static node:zlib import, which prevents the module from loading at all on
-  // workerd and in strict bundlers.
+  // Cached Bash instance promise — the first Bash.execute resolves it (loading
+  // the shell chunk), later calls hit the cache.
   let bashPromise: Promise<BashInstance> | undefined
   function getBash(): Promise<BashInstance> {
     if (!bashPromise) {
-      bashPromise = import('./shell/bundle.js').then(
-        (mod) =>
-          new mod.Bash({
-            // Caller options first, so fs/cwd can never be overridden — the tool
-            // is scoped to this filesystem and working directory by contract.
-            ...shellOptions,
-            fs: fs.rawFs,
-            cwd: fs.cwd
-          }) as unknown as BashInstance
-      )
+      const create = getShellFactory()
+      if (!create) {
+        return Promise.reject(
+          new Error(
+            'No virtual shell is registered. @nanocodana/core/no-bash omits the ' +
+              'bundled shell — import @nanocodana/core instead, use an adapter that ' +
+              'supplies its own Bash tool (@nanocodana/nodejs), or set virtualBash: false.'
+          )
+        )
+      }
+      bashPromise = create({
+        // Caller options first, so fs/cwd can never be overridden — the tool is
+        // scoped to this filesystem and working directory by contract.
+        ...shellOptions,
+        fs: fs.rawFs,
+        cwd: fs.cwd
+      })
     }
     return bashPromise
   }

@@ -38,8 +38,20 @@ jobs:
         run: node shell.test.mjs
         working-directory: packages/cli
 
+      # The published CLI is a single bundled file, and until it was wired into
+      # `npm run build` nothing in CI touched it — the artifact users actually
+      # install was the least-tested thing we shipped. Booting it catches a
+      # bundle that builds but cannot run.
+      - name: CLI bundle boots
+        run: node dist/bundle/lib/codana.mjs --version
+        working-directory: packages/cli
+
       # The packages are what ship — fail if a manifest would publish something
       # broken (missing files field, bad exports, unresolvable entry point).
+      #
+      # `npm pack` alone is NOT enough: with the bundle missing it happily
+      # produces a 5.9 kB tarball and exits 0, even though `bin` points into
+      # dist/bundle. Hence the explicit check below.
       - name: Verify publishable tarballs
         run: |
           for pkg in packages/core packages/adapters/browser packages/adapters/nodejs packages/cli; do
@@ -47,3 +59,14 @@ jobs:
             (cd "$pkg" && npm pack --dry-run)
             echo "::endgroup::"
           done
+
+      - name: Verify the CLI tarball contains its bin
+        working-directory: packages/cli
+        run: |
+          tgz=$(npm pack --silent)
+          tar -tzf "$tgz" | grep -q 'package/dist/bundle/lib/codana.mjs' \
+            || { echo "::error::CLI tarball is missing its bin target"; exit 1; }
+          tar -tzf "$tgz" | grep -q 'package/vendor/cpython-emscripten' \
+            || { echo "::error::CLI tarball is missing CPython (python3 would fail at runtime)"; exit 1; }
+          echo "bin and CPython present in $tgz"
+          rm -f "$tgz"

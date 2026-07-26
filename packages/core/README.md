@@ -69,12 +69,15 @@ child processes, no host access. Core ships a **Node-free build** of it, so this
 package loads unmodified on Cloudflare Workers, in a browser, and anywhere else
 JavaScript runs, with no bundler configuration and no `nodejs_compat`.
 
-The trade: commands needing native or wasm backends are unavailable here.
-`gzip`, `gunzip`, `zcat` and `rg -z` throw (they need `node:zlib`), as do
-`sqlite3`, `python3`, `js-exec` and `tar`. Everything else — `grep`, `sed`,
-`awk`, `rg`, pipes, redirection, the file tools — works normally.
+The trade: commands needing native or wasm backends are unavailable here —
+`sqlite3`, `python3`, `js-exec` and `tar` throw. Everything else works normally,
+including `gzip`, `gunzip`, `zcat` and `rg -z`, which the Node-free build
+implements without `node:zlib`.
 [`@nanocodana/nodejs`](https://www.npmjs.com/package/@nanocodana/nodejs) uses the
 full shell and has all of them.
+
+Need the agent but not the shell? Import
+`@nanocodana/core/no-bash` — the same API without the bundled shell (~1.2 MB).
 
 Configure it by passing an object instead of a boolean:
 

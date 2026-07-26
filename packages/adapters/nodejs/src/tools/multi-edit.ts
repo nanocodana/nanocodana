@@ -1,4 +1,4 @@
-import { createMultiEditTool } from '@nanocodana/core'
+import { createMultiEditTool } from '@nanocodana/core/no-bash'
 import { NodeFileSystem } from '../storage/node-fs.js'
 
 export function createNodeMultiEditTool(fs: NodeFileSystem) {

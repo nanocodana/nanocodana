@@ -1,4 +1,4 @@
-import { createLsTool, type LsEntry } from '@nanocodana/core'
+import { createLsTool, type LsEntry } from '@nanocodana/core/no-bash'
 import { readdir } from 'fs/promises'
 import { join } from 'path'
 import { minimatch } from 'minimatch'

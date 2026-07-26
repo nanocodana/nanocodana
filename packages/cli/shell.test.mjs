@@ -23,6 +23,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const adapter = process.env.NANOCODANA_ADAPTER || '@nanocodana/nodejs'
 const { NodeAgent } = await import(adapter)
@@ -183,6 +184,95 @@ for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
   const ok = !off.tools?.Bash
   console.log(`${ok ? '✓' : '✗'} [config] virtualBash:false drops the Bash tool`)
   if (!ok) failures++
+}
+
+// Core's vendored shell, exercised directly rather than through an adapter.
+//
+// Everything above runs on @nanocodana/nodejs, which uses the real just-bash and
+// therefore the real node:zlib. Core ships a Node-free build whose node:zlib is
+// replaced by an fflate-backed shim (core/build/shims/zlib-fflate.js), so these
+// four commands take a completely different code path there — one nothing else
+// covers. They are also the commands that were broken on edge to begin with.
+{
+  // Reached by path, not by specifier: core's exports map deliberately hides
+  // dist internals, so this block only works inside the repo — which is right,
+  // it is testing how core is *built*, not what it exposes.
+  const coreDir = new URL('../core/', import.meta.url)
+  const { Bash, InMemoryFs } = await import(new URL('dist/shell/bundle.js', coreDir).href)
+  const coreShell = () =>
+    new Bash({ fs: new InMemoryFs({ '/a.txt': 'hello\nworld\n' }), cwd: '/' })
+
+  for (const [label, command, expected] of [
+    ['gzip', 'gzip -c a.txt | wc -c', '32'],
+    ['gunzip round-trip', 'gzip -c a.txt > a.gz && gunzip -c a.gz', 'hello\nworld'],
+    ['zcat', 'gzip -c a.txt > b.gz && zcat b.gz', 'hello\nworld'],
+    ['rg -z over gzip', 'gzip -c a.txt > c.gz && rg -z world c.gz', 'world'],
+  ]) {
+    const r = await coreShell().exec(command)
+    const got = String(r.stdout ?? '').trim()
+    const ok = got === expected
+    console.log(`${ok ? '✓' : '✗'} [core-shell] ${label} (fflate, no node:zlib)`)
+    if (!ok) {
+      failures++
+      console.log(`   expected: ${JSON.stringify(expected)}`)
+      console.log(`   got:      ${JSON.stringify(got)}  exit=${r.exitCode}`)
+      if (r.stderr) console.log(`   stderr:   ${JSON.stringify(String(r.stderr).slice(0, 160))}`)
+    }
+  }
+
+  // The cap must abort *during* inflation. fflate's one-shot gunzipSync would
+  // allocate the whole payload before any length check, so a post-hoc guard here
+  // would read as passing while having lost the guarantee entirely.
+  const { gzipSync, gunzipSync } = await import(
+    new URL('build/shims/zlib-fflate.js', coreDir).href
+  )
+  const bomb = gzipSync(new Uint8Array(40 * 1024 * 1024))
+  let bounded = false
+  try {
+    gunzipSync(bomb, { maxOutputLength: 1024 * 1024 })
+  } catch (err) {
+    bounded = err?.code === 'ERR_BUFFER_TOO_LARGE'
+  }
+  console.log(`${bounded ? '✓' : '✗'} [core-shell] decompression bomb is bounded mid-inflation`)
+  if (!bounded) failures++
+}
+
+// Exactly one shell per bundle.
+//
+// @nanocodana/nodejs supplies its own Bash tool, so core's vendored shell is
+// dead weight for it — but core reaches that shell through a *reachable* dynamic
+// import, and no bundler can drop one of those on a runtime flag. Importing
+// core's default entry anywhere in the adapter therefore adds ~1.2 MB that can
+// never run: measured at 3.58 MB vs 4.81 MB for the same app.
+//
+// The defence is that all of the adapter's files import @nanocodana/core/no-bash
+// instead. That is a convention across a dozen files, and a single stray default
+// import silently undoes it — nothing fails, the bundle just quietly grows. So
+// assert it against the real module graph rather than trusting the convention.
+{
+  const { build } = await import('esbuild')
+  const entry = new URL('../adapters/nodejs/dist/index.js', import.meta.url)
+  const result = await build({
+    entryPoints: [fileURLToPath(entry)],
+    bundle: true,
+    write: false,
+    metafile: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node20',
+    logLevel: 'silent',
+    external: ['quickjs-emscripten', '@mongodb-js/zstd', 'node-liblzma', '@vscode/ripgrep'],
+  })
+  const inputs = Object.keys(result.metafile.outputs[Object.keys(result.metafile.outputs)[0]].inputs)
+  const leaked = inputs.filter((f) => /core\/dist\/shell\/(bundle|register)/.test(f))
+  const ok = leaked.length === 0
+  console.log(`${ok ? '✓' : '✗'} [bundle] core's shell stays out of @nanocodana/nodejs`)
+  if (!ok) {
+    failures++
+    console.log(`   core's shell reached the adapter's bundle via:`)
+    for (const f of leaked) console.log(`     ${f}`)
+    console.log(`   something imports '@nanocodana/core' instead of '@nanocodana/core/no-bash'`)
+  }
 }
 
 // Host escalation is a capability gate, not just an approval gate: with it off

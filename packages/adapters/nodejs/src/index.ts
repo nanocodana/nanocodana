@@ -4,7 +4,7 @@ import {
   type MCPServerConfig,
   type Skill,
   type VirtualShellOptions
-} from '@nanocodana/core'
+} from '@nanocodana/core/no-bash'
 import { NodeFileSystem } from './storage/node-fs.js'
 import {
   createNodeGlobTool,
@@ -145,3 +145,17 @@ export function NodeAgent(config: NodeAgentConfig): NanoCodana {
 export { NodeFileSystem }
 export { loadSkillsFromDir, loadSkillsFromDirs } from './skills.js'
 export { createNodeGrepTool, createRipgrepTool, resolveRipgrepPath } from './tools/index.js'
+
+// This adapter's own surface is expressed in core's types: NodeAgent returns a
+// NanoCodana, and NodeAgentConfig above is built from Tool, MCPServerConfig,
+// Skill and VirtualShellOptions. Re-exported so consumers can name them without
+// taking a direct dependency on core — and, when they do, they get them through
+// the /no-bash entry rather than the one that carries the 1.2 MB shell.
+export { NanoCodana } from '@nanocodana/core/no-bash'
+export type {
+  Tool,
+  MCPServerConfig,
+  Skill,
+  VirtualShellOptions,
+  IFileSystem
+} from '@nanocodana/core/no-bash'

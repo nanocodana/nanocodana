@@ -1,4 +1,4 @@
-import { createGlobTool } from '@nanocodana/core'
+import { createGlobTool } from '@nanocodana/core/no-bash'
 import fg from 'fast-glob'
 import { join } from 'path'
 

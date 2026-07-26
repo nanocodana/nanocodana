@@ -14,17 +14,17 @@
 //      the browser build cannot run anyway.
 //
 // So we bundle just-bash's own published browser artifact once, at *our* build
-// time, aliasing node:zlib to a stub. The result is a single self-contained file
-// with zero `node:` imports and zero runtime dependencies. just-bash becomes a
-// devDependency and disappears from consumers' trees entirely.
+// time, aliasing node:zlib to an fflate-backed replacement. The result is a
+// single self-contained file with zero `node:` imports and zero runtime
+// dependencies. just-bash becomes a devDependency and disappears from consumers'
+// trees entirely.
 //
 // This is deliberately built from the PUBLISHED npm artifact, not from their
 // source: no repo clone, no pnpm, no git-lfs, no toolchain of theirs to keep
 // working. `npm install` pins the input, so the output is reproducible.
 //
-// WHAT IS LOST: gzip, gunzip, zcat, and `rg -z` throw instead of running. They
-// were already unavailable to core's shell on any runtime without node:zlib, and
-// @nanocodana/nodejs is unaffected — it uses the real just-bash directly.
+// NOTHING IS LOST: gzip, gunzip, zcat and `rg -z` work, including their bounded
+// -inflation guarantee — see shims/zlib-fflate.js for how that is preserved.
 import { build } from 'esbuild'
 import { copyFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
@@ -68,7 +68,7 @@ const result = await build({
   platform: 'browser',
   target: 'es2022',
   outfile: join(outDir, 'bundle.js'),
-  alias: { 'node:zlib': join(here, 'shims', 'zlib-unavailable.js') },
+  alias: { 'node:zlib': join(here, 'shims', 'zlib-fflate.js') },
   legalComments: 'none',
   metafile: true,
   banner: {
@@ -92,8 +92,12 @@ if (nodeImports.length > 0) {
   )
 }
 
-// Apache-2.0 requires the license to travel with redistributed builds.
+// Both licences have to travel with the build: bundle.js contains just-bash's
+// code (Apache-2.0) and fflate's (MIT, via the node:zlib alias), and esbuild is
+// configured with legalComments: 'none', which strips the inline notices.
 await copyFile(join(shellPkgDir, 'LICENSE'), join(outDir, 'LICENSE.just-bash'))
+const fflateDir = packageRootOf(fileURLToPath(import.meta.resolve('fflate')), 'fflate').dir
+await copyFile(join(fflateDir, 'LICENSE'), join(outDir, 'LICENSE.fflate'))
 
 // tsc resolves `import('./shell/bundle.js')` through src/shell/bundle.d.ts, but
 // does not copy .d.ts inputs to outDir — consumers need one next to the bundle.

@@ -1,4 +1,4 @@
-import { createEditTool } from '@nanocodana/core'
+import { createEditTool } from '@nanocodana/core/no-bash'
 import type { NodeFileSystem } from '../storage/node-fs.js'
 
 export function createNodeEditTool(fs: NodeFileSystem) {

@@ -7,8 +7,8 @@ All four `@nanocodana/*` packages share a version and are released together.
 ### The virtual shell is now vendored into `@nanocodana/core`
 
 Core no longer depends on `just-bash` at runtime. Its build re-bundles just-bash's
-published browser artifact once, with `node:zlib` aliased to a stub, and ships the
-result as a single self-contained file.
+published browser artifact once, with `node:zlib` aliased to an fflate-backed
+implementation, and ships the result as a single self-contained file.
 
 **Why:** just-bash's browser bundle has two *static* top-level
 `import ... from "node:zlib"`. Browser bundlers auto-polyfill that, so it went
@@ -38,16 +38,52 @@ of just-bash 3.2.0, which this release builds against.
 `apps/cloudflare` demonstrates the result: no `compatibility_flags`, no `alias`
 block, no shims.
 
-#### ⚠️ Breaking: `gzip`, `gunzip`, `zcat` and `rg -z` now throw in core and browser
+#### `gzip`, `gunzip`, `zcat` and `rg -z` now work on browser and edge
 
-These worked wherever `node:zlib` resolved — on Node, and in browser bundles whose
-bundler polyfilled it (webpack, Next.js). They now throw a clear error naming the
-cause. Everything else is unchanged: `Bash`, `Grep`, `Glob`, `LS` and the file
-tools behave identically.
+They previously needed `node:zlib`, so they worked on Node and in browser bundles
+whose bundler polyfilled it (webpack, Next.js), and failed everywhere else. The
+vendored build supplies its own implementation instead, so they work the same on
+every runtime. This costs 10 kB.
 
-**`@nanocodana/nodejs` is unaffected** — it uses the full just-bash and keeps
-`gzip`, `sqlite3`, `tar` and the rest. If you need compression in the shell on
-Node, use that adapter.
+The replacement preserves a guarantee that is easy to lose. Every call site passes
+`maxOutputLength`, and Node's zlib enforces it *during* inflation — that is what
+makes a decompression bomb a bounded error rather than an out-of-memory crash. A
+drop-in that inflates first and checks afterwards would have the bomb in memory
+before the check ran, which on a 128 MB isolate is a denial of service. So the
+replacement drives fflate's synchronous streaming decoder and counts bytes per
+chunk, aborting mid-inflation. `packages/cli/shell.test.mjs` asserts this with a
+payload that expands 1024x.
+
+### The Node adapter deliberately does *not* vendor
+
+`@nanocodana/nodejs` depends on `just-bash` normally. Vendoring solves a
+correctness problem that only exists off Node: there, `node:zlib` resolves, and
+just-bash's worker and CPython assets resolve inside `node_modules` exactly as
+designed. Vendoring it there bought smaller installs at the cost of a second
+build script reproducing a fragile asset layout, so the adapter now uses the
+package directly and the layout is encoded in exactly one place — the CLI's
+bundler, which is the only thing that needs it.
+
+| | vendored | as a dependency |
+|---|---|---|
+| `@nanocodana/nodejs` install | 103 MB / 184 packages | **141 MB / 212 packages** |
+| `@nanocodana/nodejs` download | 7.65 MB | **18.7 kB** |
+
+#### Added: `@nanocodana/core/no-bash`
+
+The same API as `@nanocodana/core` without the bundled shell. The shell is reached
+through a *reachable* dynamic import, and no bundler can drop one of those on a
+runtime flag — `virtualBash: false` stops a code-splitting bundler from *fetching*
+the chunk, but the bytes are still in the build. Omitting it therefore needs a
+separate entry point.
+
+This matters most for `@nanocodana/nodejs`, which supplies its own Bash tool and
+so would otherwise ship two complete shells. Measured on a bundled Node app:
+**3.58 MB**, rising to **4.81 MB** the moment anything imports core's default
+entry — a 1.23 MB delta against a 1.22 MB shell. The adapter now imports
+`/no-bash` throughout, and a test asserts core's shell never reaches its bundle.
+
+Use it when something else provides the Bash tool, or with `virtualBash: false`.
 
 ### ⚠️ Breaking: host shell access is off by default on `@nanocodana/nodejs`
 
@@ -89,8 +125,7 @@ wasm-backed commands are unavailable regardless.
 
 ### Added: a smaller install via `--omit=optional`
 
-The three native/prebuilt payloads are now `optionalDependencies` on both
-`@nanocodana/nodejs` and `@nanocodana/cli`. Each unlocks exactly one capability
+Three native/prebuilt payloads are optional. Each unlocks exactly one capability
 and is dead weight otherwise, and the shell already dynamic-imports all three
 inside `try`/`catch` with an actionable error:
 
@@ -100,19 +135,27 @@ inside `try`/`catch` with an actionable error:
 | `@mongodb-js/zstd` | `tar --zstd` | error naming the package |
 | `@vscode/ripgrep` | native ripgrep | falls back to the JS implementation |
 
+just-bash 3.2.0 declares the two codecs as `optionalDependencies` upstream, so we
+only declare ripgrep; one flag prunes all three.
+
 ```bash
 npm install @nanocodana/nodejs --omit=optional
 ```
 
 | | full | `--omit=optional` |
 |---|---|---|
-| `@nanocodana/nodejs` | 103 MB / 184 packages | **92 MB / 145 packages** |
-| `@nanocodana/cli` | 38 MB / 50 packages | **28 MB / 8 packages** |
+| `@nanocodana/nodejs` | 141 MB / 212 packages | **131 MB / 175 packages** |
+| `@nanocodana/cli` | 36 MB / 50 packages | **27 MB / 8 packages** |
 
-Nothing else changes: the other ~80 commands, `sqlite3`, `python3`, `js-exec`
-and every file tool are unaffected. The shell matrix runs green in both
+Nothing else changes: the other ~80 commands, `sqlite3`, `python3`, `js-exec` and
+every file tool are unaffected, and the shell matrix runs green in both
 configurations — the two compression cases assert on *how* they fail when the
 dependency is missing, so a crash or a silent wrong answer would still be caught.
+
+CPython is a separate case: it ships inside just-bash's own tarball, so npm's
+optional mechanism cannot reach it. It is only read when `python: true`, and a
+deployment that leaves python off can delete
+`node_modules/just-bash/vendor/` for another ~10 MB.
 
 ### Fixed
 
@@ -128,18 +171,33 @@ dependency is missing, so a crash or a silent wrong answer would still be caught
 
 ### Testing
 
-New `packages/cli/shell.test.mjs` exercises the shell across all four just-bash
-backends — pure JS, worker, wasm, native — plus the optional-dependency tier and
-the host-escalation gate. The worker- and wasm-backed commands load files at
-runtime, so they break silently when the package is bundled without its assets:
-the module still imports and the command still exists, failing only when run.
-Verified to catch exactly that.
+New `packages/cli/shell.test.mjs`, 25 cases across every way this can break:
+
+- **the four just-bash backends** — pure JS, worker, wasm, native. The last three
+  load files at runtime, so they break silently when a package is bundled without
+  its assets: the module still imports and the command still exists, failing only
+  when run. Smoke tests that import source modules cannot see this.
+- **the optional-dependency tier** — asserting on *how* `tar -J` and `tar --zstd`
+  fail when the native codec is absent, so a supported install stays supported.
+- **core's polyfilled compression path** — everything else runs on the Node
+  adapter and its real `node:zlib`, so these four commands had no coverage at all
+  on the build where they were most likely to break. Plus a decompression bomb
+  that must abort mid-inflation.
+- **one shell per bundle** — asserts against esbuild's module graph that core's
+  shell never reaches `@nanocodana/nodejs`. That fix is a convention spread over a
+  dozen files, and a single stray import would silently undo it.
+- **the host-escalation gate** — that the parameter is hidden when disabled, and
+  that an explicit `host: true` is refused rather than downgraded.
 
 Point it at any build to diff that build against the baseline:
 
 ```bash
 NANOCODANA_ADAPTER=../../some/bundle.js node shell.test.mjs
 ```
+
+CI additionally boots the published CLI bundle and asserts the tarball contains
+its `bin` and CPython — `npm pack` alone will happily produce a 5.9 kB tarball
+with neither and exit 0.
 
 ## 0.1.1
 

@@ -1,4 +1,4 @@
-import type { Tool } from '@nanocodana/core'
+import type { Tool } from '@nanocodana/core/no-bash'
 import { spawn, spawnSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'

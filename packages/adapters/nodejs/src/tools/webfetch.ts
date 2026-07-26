@@ -1,5 +1,5 @@
 import { jsonSchema } from 'ai'
-import type { Tool } from '@nanocodana/core'
+import type { Tool } from '@nanocodana/core/no-bash'
 import TurndownService from 'turndown'
 
 interface WebFetchArgs {

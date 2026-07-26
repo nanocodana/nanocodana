@@ -50,8 +50,9 @@ curl -s localhost:8787/agent -X POST -H 'content-type: application/json' -d '{"p
 **No `nodejs_compat`, no bundler config.** `wrangler.jsonc` has no
 `compatibility_flags` and no `alias` block, because `@nanocodana/core` ships a
 **Node-free build of its virtual shell**: just-bash's browser artifact,
-re-bundled at core's build time with `node:zlib` aliased to a stub. The published
-artifact has zero `node:` imports, so it loads on workerd as-is.
+re-bundled at core's build time with `node:zlib` aliased to an fflate-backed
+implementation. The published artifact has zero `node:` imports, so it loads on
+workerd as-is.
 
 That matters more than it sounds. just-bash's browser bundle has two *static*
 top-level `import ... from "node:zlib"` (for `gzip`/`gunzip`/`zcat` and `rg -z`).
@@ -64,10 +65,11 @@ years — but workerd doesn't, and a static import is fatal rather than degradin
 ```
 
 Four optional commands taking down the whole shell. Vendoring moves that decision
-into core's build so no consumer ever meets it. The cost is that
-`gzip`/`gunzip`/`zcat`/`rg -z` throw here; everything else — `Bash`, `Grep`,
-`Glob`, `LS` and the file tools — works untouched. On Node, `@nanocodana/nodejs`
-uses the real just-bash and has all of them.
+into core's build so no consumer ever meets it — and because the alias is a real
+implementation rather than a stub, `gzip`/`gunzip`/`zcat`/`rg -z` work here too.
+What stays unavailable is the wasm- and native-backed set: `sqlite3`, `python3`,
+`js-exec` and `tar`. On Node, `@nanocodana/nodejs` uses the real just-bash and
+has all of them.
 
 **Lazy hydration pays off, and whole-tree tools defeat it.** Reading one file
 fetched `1/10` from D1. A turn using `Grep` fetched `10/10`: `Glob`, `Grep`, and
@@ -78,17 +80,24 @@ tools, or hydrate eagerly, when the project is large.
 nothing extra here — turns came back with ~97% of input tokens served as cache
 reads.
 
-**Bundle size is not a problem.** `npm run bundle` reports **4145 KiB raw /
-808 KiB gzipped**, against Workers' 3 MB gzipped limit on the free plan.
+**Bundle size is not a problem.** `npm run bundle` reports **4323 KiB raw /
+854 KiB gzipped**, against Workers' 3 MB gzipped limit on the free plan.
 
 **`virtualBash: false` doesn't shrink a Worker bundle.** The obvious move — drop
 the shell you don't need — has no effect here: output is byte-identical. No
 bundler can eliminate a *reachable* dynamic import based on a runtime flag, so
 the shell is in the build either way. The option is still real, but what it saves
 is a code-splitting bundler *fetching* the chunk — a browser initial-paint win,
-not a bundle-size one. To actually drop the shell from a single-file build, alias
-`@nanocodana/core`'s `dist/shell/bundle.js` to a stub in `wrangler.jsonc`; that
-takes this Worker from 808 KB to roughly 450 KB gzipped, leaving the nine
+not a bundle-size one.
+
+**To actually drop it, change the import.** `@nanocodana/core/no-bash` is the
+same API with the shell left out, which is the only thing a bundler can act on:
+
+```js
+import { NanoCodana } from '@nanocodana/core/no-bash'
+```
+
+Measured on this Worker: **854 KiB → 448 KiB gzipped**, leaving the nine
 core-native tools (Read, Write, Edit, MultiEdit, Delete, Glob, Grep, LS, Todo).
 
 ## Configuring the shell
@@ -100,9 +109,10 @@ new NanoCodana({ model, virtualBash: { env: { CI: '1' }, maxCommandCount: 500 } 
 ```
 
 Availability differs by package, because the shell build differs. Here — core's
-Node-free build — `gzip`/`gunzip`/`zcat`/`rg -z` throw, and the wasm-backed
-commands (`sqlite3`, `python3`, `js-exec`, `tar`) are unavailable regardless of
-options. On `@nanocodana/nodejs` all of them work, and `{ python: true }` /
+Node-free build — the wasm- and native-backed commands (`sqlite3`, `python3`,
+`js-exec`, `tar`) are unavailable regardless of options; `gzip`/`gunzip`/`zcat`/
+`rg -z` do work, since the build supplies its own compression rather than
+`node:zlib`. On `@nanocodana/nodejs` all of them work, and `{ python: true }` /
 `{ javascript: true }` switch on `python3` and `js-exec`.
 
 ## `await` vs `ctx.waitUntil`

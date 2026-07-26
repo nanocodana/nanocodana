@@ -35,6 +35,7 @@
 import { build } from 'esbuild'
 import { cp, mkdir, readFile, rm } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join, parse } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -53,21 +54,36 @@ const EXTERNAL = [
   '@vscode/ripgrep',
 ]
 
-// Taken as-is from @nanocodana/nodejs/dist/shell/lib, which built them.
+// Copied verbatim from just-bash. The adapter depends on just-bash normally
+// rather than vendoring it, so this is the one place in the repo that has to
+// reproduce its asset layout — and the one place that bundles at all.
 //
-// `bundle.js` is deliberately absent: esbuild inlines it into codana.mjs when it
-// follows the adapter's import. Only what the shell loads by *path* at runtime
-// needs to be a file on disk.
+// js-exec's worker stays verbatim on purpose: quickjs-emscripten resolves its
+// wasm variant dynamically, and bundling it breaks the worker's wire protocol
+// ("Malformed worker response: invalid protocol token"). Not worth ~7 MB.
+const WORKERS = ['worker.js', 'js-exec-worker.js']
+
+// Re-bundled with their JS dependency inlined, so the dependency can be dropped
+// and only its wasm payload shipped.
 //
-// LICENSE.just-bash travels with them — the shell's code ends up inside
-// codana.mjs, so the Apache-2.0 notice has to ship too.
-const SHELL_ASSETS = [
-  'worker.js',
-  'js-exec-worker.js',
-  'sqlite3-worker.js',
-  'sql-wasm.wasm',
-  'LICENSE.just-bash',
+// sql.js installs 19 MB but its live path is 45 kB of glue plus a 660 kB .wasm —
+// the rest is asm.js fallbacks and debug builds for environments that predate
+// wasm, shipped to everyone because the package has no `files` field. Inlining
+// the glue here and copying the wasm beside it removes the dependency outright.
+//
+// The `__dirname` shim in the banner is required: sql.js locates its wasm via
+// __dirname, which does not exist in ESM.
+const BUNDLED_WORKERS = [
+  { worker: 'sqlite3-worker.js', assets: [['sql.js', 'dist/sql-wasm.wasm']] },
 ]
+
+const CJS_GLOBALS_BANNER =
+  "import{createRequire as __cr}from'node:module';" +
+  "import{fileURLToPath as __f}from'node:url';" +
+  "import{dirname as __d}from'node:path';" +
+  'const require=__cr(import.meta.url);' +
+  'const __filename=__f(import.meta.url);' +
+  'const __dirname=__d(__filename);'
 
 function packageRootOf(startFile, name) {
   let dir = dirname(startFile)
@@ -83,11 +99,20 @@ function packageRootOf(startFile, name) {
   }
 }
 
-const adapterDir = packageRootOf(
-  fileURLToPath(import.meta.resolve('@nanocodana/nodejs')),
-  '@nanocodana/nodejs',
+// Resolved THROUGH @nanocodana/nodejs, not from here. The CLI does not depend on
+// just-bash and must not: declaring its own range would let npm satisfy the CLI
+// and the adapter with different copies, and then codana.mjs would contain shell
+// code bundled from the adapter's copy while the workers and CPython beside it
+// came from ours. Same version, mismatched builds, failing only at runtime.
+//
+// Going through the adapter makes the assets provably the same copy that got
+// inlined into the bundle.
+const adapterEntry = fileURLToPath(import.meta.resolve('@nanocodana/nodejs'))
+const shellPkgDir = packageRootOf(
+  createRequire(adapterEntry).resolve('just-bash'),
+  'just-bash',
 )
-const adapterShellDir = join(adapterDir, 'dist', 'shell', 'lib')
+const chunksDir = join(shellPkgDir, 'dist', 'bundle', 'chunks')
 
 await rm(outDir, { recursive: true, force: true })
 await rm(vendorDir, { recursive: true, force: true })
@@ -113,22 +138,38 @@ await build({
   },
 })
 
-for (const asset of SHELL_ASSETS) {
-  const from = join(adapterShellDir, asset)
-  if (!existsSync(from)) {
-    throw new Error(
-      `Missing ${asset} in ${adapterShellDir}. Build @nanocodana/nodejs first — ` +
-        `the CLI copies its shell assets from the adapter, it no longer derives them from just-bash.`,
-    )
-  }
-  await cp(from, join(outDir, asset))
+for (const worker of WORKERS) {
+  await cp(join(chunksDir, worker), join(outDir, worker))
 }
 
-// CPython, for python3. Large (~10 MB) but already present as part of the
-// adapter — copying just moves where it lives, it doesn't add weight.
-await cp(join(adapterDir, 'vendor'), vendorDir, { recursive: true })
+for (const { worker, assets } of BUNDLED_WORKERS) {
+  await build({
+    entryPoints: [join(chunksDir, worker)],
+    bundle: true,
+    minify: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node20',
+    outfile: join(outDir, worker),
+    external: EXTERNAL,
+    legalComments: 'none',
+    banner: { js: CJS_GLOBALS_BANNER },
+  })
+  for (const [pkg, assetPath] of assets) {
+    const dir = packageRootOf(fileURLToPath(import.meta.resolve(pkg)), pkg)
+    await cp(join(dir, ...assetPath.split('/')), join(outDir, assetPath.split('/').pop()))
+  }
+}
+
+// CPython, for python3. Large (~10 MB) but already downloaded as part of
+// just-bash — copying just moves where it lives, it doesn't add weight.
+await cp(join(shellPkgDir, 'vendor'), vendorDir, { recursive: true })
+
+// Apache-2.0 requires the licence to travel with redistributed builds, and
+// just-bash's code ends up inside codana.mjs.
+await cp(join(shellPkgDir, 'LICENSE'), join(outDir, 'LICENSE.just-bash'))
 
 const bytes = (await readFile(join(outDir, 'codana.mjs'))).byteLength
 console.log(
-  `  codana: ${(bytes / 1024 / 1024).toFixed(2)} MB + ${SHELL_ASSETS.length} shell assets + CPython`,
+  `  codana: ${(bytes / 1024 / 1024).toFixed(2)} MB + ${WORKERS.length + BUNDLED_WORKERS.length} workers + CPython`,
 )

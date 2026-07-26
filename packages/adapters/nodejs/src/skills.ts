@@ -1,7 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import type { IFileSystem } from 'just-bash'
-import { loadSkills, loadSkillsFrom, type Skill } from '@nanocodana/core'
+import { loadSkills, loadSkillsFrom, type Skill, type IFileSystem } from '@nanocodana/core'
 
 /**
  * A minimal IFileSystem over Node's real filesystem (absolute paths, no root

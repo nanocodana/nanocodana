@@ -47,29 +47,27 @@ curl -s localhost:8787/agent -X POST -H 'content-type: application/json' -d '{"p
 
 ## What running it actually showed
 
-**One static `node:zlib` import decides whether this Worker starts at all.**
-Core imports zero Node builtins. But its virtual shell, `just-bash/browser`, has
-two static top-level `import ... from "node:zlib"` for `gzip`/`gunzip`/`zcat` and
-rg's gzip-search. Browser bundlers auto-polyfill `node:zlib`, which is why
-nothing has ever noticed. workerd does not, and a *static* import is fatal:
+**No `nodejs_compat`, no bundler config.** `wrangler.jsonc` has no
+`compatibility_flags` and no `alias` block, because `@nanocodana/core` ships a
+**Node-free build of its virtual shell**: just-bash's browser artifact,
+re-bundled at core's build time with `node:zlib` aliased to a stub. The published
+artifact has zero `node:` imports, so it loads on workerd as-is.
+
+That matters more than it sounds. just-bash's browser bundle has two *static*
+top-level `import ... from "node:zlib"` (for `gzip`/`gunzip`/`zcat` and `rg -z`).
+Browser bundlers auto-polyfill `node:zlib`, which is why this went unnoticed for
+years — but workerd doesn't, and a static import is fatal rather than degrading:
 
 ```
-✘ [ERROR] service core:user:nanocodana-agent: Uncaught Error: No such module "node:zlib".
+✘ [ERROR] Uncaught Error: No such module "node:zlib".
 ✘ [ERROR] The Workers runtime failed to start.
 ```
 
-A boot failure, not a degraded runtime. There are two ways out, and this app
-takes the second:
-
-| | |
-|---|---|
-| `"compatibility_flags": ["nodejs_compat"]` | everything works, including `gzip`. Adds a Node polyfill layer. |
-| `"alias": { "node:zlib": "./src/zlib-shim.js" }` | **zero Node surface.** `gzip`/`gunzip`/`zcat`/`rg -z` throw a clear error; nothing else changes. |
-
-Verified with the alias and *no* compat flag: `Bash` (`ls -R`, `wc -l`), `Grep`,
-`Edit`, and the full D1 round trip all work untouched, and `gzip` fails with an
-actionable message rather than a mystery. Swap to the flag if you need gzip in
-the shell.
+Four optional commands taking down the whole shell. Vendoring moves that decision
+into core's build so no consumer ever meets it. The cost is that
+`gzip`/`gunzip`/`zcat`/`rg -z` throw here; everything else — `Bash`, `Grep`,
+`Glob`, `LS` and the file tools — works untouched. On Node, `@nanocodana/nodejs`
+uses the real just-bash and has all of them.
 
 **Lazy hydration pays off, and whole-tree tools defeat it.** Reading one file
 fetched `1/10` from D1. A turn using `Grep` fetched `10/10`: `Glob`, `Grep`, and
@@ -80,72 +78,32 @@ tools, or hydrate eagerly, when the project is large.
 nothing extra here — turns came back with ~97% of input tokens served as cache
 reads.
 
-**Bundle size is not a problem.** `npm run bundle` reports **4196 KiB raw /
-816 KiB gzipped**, against Workers' 3 MB gzipped limit on the free plan.
+**Bundle size is not a problem.** `npm run bundle` reports **4145 KiB raw /
+808 KiB gzipped**, against Workers' 3 MB gzipped limit on the free plan.
 
-**`virtualBash: false` does not help here.** The obvious move — drop the shell you
-don't need — has no effect on a Worker: bundle output was byte-identical and the
-Worker still refused to boot. No bundler can eliminate a *reachable* dynamic
-import based on a runtime flag, so `just-bash` (and its `node:zlib`) is in the
-build either way. The option is real, but what it saves is a code-splitting
-bundler *fetching* the chunk — a browser initial-paint win, not a bundle-size one.
+**`virtualBash: false` doesn't shrink a Worker bundle.** The obvious move — drop
+the shell you don't need — has no effect here: output is byte-identical. No
+bundler can eliminate a *reachable* dynamic import based on a runtime flag, so
+the shell is in the build either way. The option is still real, but what it saves
+is a code-splitting bundler *fetching* the chunk — a browser initial-paint win,
+not a bundle-size one. To actually drop the shell from a single-file build, alias
+`@nanocodana/core`'s `dist/shell/bundle.js` to a stub in `wrangler.jsonc`; that
+takes this Worker from 808 KB to roughly 450 KB gzipped, leaving the nine
+core-native tools (Read, Write, Edit, MultiEdit, Delete, Glob, Grep, LS, Todo).
 
-**What *does* shrink the bundle: aliasing the shell itself.** Since the only
-runtime reference to just-bash is one dynamic import, pointing that import at a
-stub removes the shell — and with it the `node:zlib` problem, since zlib came
-from just-bash in the first place. Measured:
+## Configuring the shell
 
-| Build | raw | gzipped | shell |
-|---|---|---|---|
-| Full agent (default here) | 4196 KiB | 816 KiB | ✅ Bash |
-| `just-bash/browser` aliased out | **2544 KiB** | **448 KiB** (−45%) | ❌ |
+`virtualBash` also accepts options, forwarded to just-bash:
 
-Verified working: 9 tools — Read, Write, Edit, MultiEdit, Delete, Glob, Grep, LS,
-TodoWrite — all core-native and unaffected. Only `Bash` disappears.
-
-**`node:zlib` is the only genuine Node dependency in the shell.** Audited the
-whole browser bundle: two `node:zlib` imports, and that's it. Every `Buffer`
-reference is feature-detected (`typeof Buffer < "u" ? … : fallback`), and the
-`process`/`setImmediate` hits are entries in just-bash's own sandbox denylist,
-not calls. So one alias really does buy a Node-free Worker.
-
-## Why the shim is a stub, not a polyfill
-
-The obvious upgrade — back `node:zlib` with [fflate](https://github.com/101arrowz/fflate)
-so the compression commands actually work — takes more than a zlib replacement.
-Two things block it, both worth knowing before anyone tries:
-
-- **`Buffer` is also missing.** With fflate aliased in, `gzip` gets past
-  `node:zlib` and dies on `gzip: Buffer is not defined` — `gzip.ts:271` calls
-  `Buffer.from(data).toString("latin1")` with no feature guard. `Buffer` is a
-  *global*, so it needs an esbuild `inject`, not an `alias`.
-- **fflate can't enforce the decompression cap the same way.** node's zlib
-  applies `maxOutputLength` *during* inflation, and just-bash depends on that:
-  `gzip.ts:323` carries an explicit `@banned-pattern-ignore` justified by "zlib
-  maxOutputLength bound allocation before decode", and it reserves
-  `maxOutput * 2` bytes on that assumption. Checking the size *after* inflating
-  would defeat it — a gzip with a lying ISIZE footer allocates unbounded first.
-  A correct version uses fflate's streaming `Gunzip` with an incremental counter.
-
-So a real polyfill is two shims plus a test suite borrowed from just-bash
-(`gzip.security.test.ts`, `rg.decompression-limits.test.ts`), which belongs in
-core's build rather than in an example app. Until then: a stub that fails loudly.
-
-## Dropping the shell
-
-If the agent doesn't need `Bash`, two changes cut the bundle nearly in half and
-remove the `node:zlib` problem at its source. In `wrangler.jsonc`, swap which
-module is aliased:
-
-```jsonc
-"alias": { "just-bash/browser": "./src/no-bash-shim.js" }
+```js
+new NanoCodana({ model, virtualBash: { env: { CI: '1' }, maxCommandCount: 500 } })
 ```
 
-and pass `virtualBash: false` when constructing the agent in `src/worker.js`.
-Both shims are committed here so the swap is one line each way.
-
-`virtualBash: false` **alone does nothing** — the alias is what removes the
-module. See the finding above for why.
+Availability differs by package, because the shell build differs. Here — core's
+Node-free build — `gzip`/`gunzip`/`zcat`/`rg -z` throw, and the wasm-backed
+commands (`sqlite3`, `python3`, `js-exec`, `tar`) are unavailable regardless of
+options. On `@nanocodana/nodejs` all of them work, and `{ python: true }` /
+`{ javascript: true }` switch on `python3` and `js-exec`.
 
 ## `await` vs `ctx.waitUntil`
 

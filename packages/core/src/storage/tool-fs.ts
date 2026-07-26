@@ -1,4 +1,4 @@
-import type { IFileSystem } from 'just-bash'
+import type { IFileSystem } from './in-memory-fs/interface.js'
 import type { EditOperation } from '../tools/multi-edit.js'
 import type { LsEntry } from '../tools/ls.js'
 

@@ -1,6 +1,6 @@
 {
   "name": "@nanocodana/browser",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,7 +15,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@nanocodana/core": "^0.1.0",
+    "@nanocodana/core": "^0.2.0",
     "ai": "^6.0.154",
     "minimatch": "^10.2.5",
     "zod": "^4.3.6"

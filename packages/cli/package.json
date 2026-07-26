@@ -1,18 +1,20 @@
 {
   "name": "@nanocodana/cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "codana — a terminal coding agent built on NanoCodana: approvals, Agent Skills, MCP, and any model the AI SDK supports.",
   "type": "module",
   "bin": {
-    "codana": "./dist/index.js"
+    "codana": "./dist/bundle/lib/codana.mjs"
   },
   "files": [
-    "dist",
+    "dist/bundle",
+    "vendor",
     "example-skills"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.tsx",
+    "test": "node smoke.test.mjs && node shell.test.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -31,10 +33,23 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "quickjs-emscripten": "*"
+  },
+  "//optionalDependencies": "See @nanocodana/nodejs. quickjs-emscripten stays required because js-exec is on by default in the CLI; these three each unlock one capability and degrade with a clear error when absent.",
+  "optionalDependencies": {
+    "@mongodb-js/zstd": "*",
+    "@vscode/ripgrep": "*",
+    "node-liblzma": "*"
+  },
+  "//devDependencies": "Everything the CLI imports is bundled into dist/bundle by build/bundle-cli.mjs, so it must NOT be a runtime dependency — declaring these as `dependencies` is what made the published install 163 MB. The four `dependencies` above are the only things left external: native .node addons and wasm/binaries a bundler cannot inline.",
+  "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/openai": "^3.0.67",
     "@ai-sdk/openai-compatible": "^2.0.48",
-    "@nanocodana/nodejs": "^0.1.0",
+    "@nanocodana/core": "^0.2.0",
+    "@nanocodana/nodejs": "^0.2.0",
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
     "ai": "^6.0.154",
     "cli-highlight": "^2.1.11",
     "conf": "^15.1.0",
@@ -42,15 +57,11 @@
     "ink": "^7.0.0",
     "ink-gradient": "^4.0.0",
     "ink-spinner": "^5.0.0",
+    "ink-testing-library": "^4.0.0",
     "ink-text-input": "^6.0.0",
     "marked": "^18.0.4",
     "meow": "^14.1.0",
-    "react": "^19.2.5"
-  },
-  "devDependencies": {
-    "@types/node": "^25.5.2",
-    "@types/react": "^19.2.14",
-    "ink-testing-library": "^4.0.0",
+    "react": "^19.2.5",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },

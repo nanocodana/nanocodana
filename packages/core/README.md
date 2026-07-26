@@ -62,4 +62,26 @@ const agent = new NanoCodana({
 Anthropic-style Agent Skills discovered from the agent's own filesystem.
 Automatic Anthropic prompt caching is on by default.
 
+## The shell
+
+`Bash` is a real POSIX-ish shell running against the agent's filesystem — no
+child processes, no host access. Core ships a **Node-free build** of it, so this
+package loads unmodified on Cloudflare Workers, in a browser, and anywhere else
+JavaScript runs, with no bundler configuration and no `nodejs_compat`.
+
+The trade: commands needing native or wasm backends are unavailable here.
+`gzip`, `gunzip`, `zcat` and `rg -z` throw (they need `node:zlib`), as do
+`sqlite3`, `python3`, `js-exec` and `tar`. Everything else — `grep`, `sed`,
+`awk`, `rg`, pipes, redirection, the file tools — works normally.
+[`@nanocodana/nodejs`](https://www.npmjs.com/package/@nanocodana/nodejs) uses the
+full shell and has all of them.
+
+Configure it by passing an object instead of a boolean:
+
+```ts
+new NanoCodana({ model, virtualBash: { env: { CI: '1' }, maxCommandCount: 500 } })
+```
+
+Set `virtualBash: false` to drop the tool entirely.
+
 **Docs:** <https://nanocodana.github.io/docs/core/> · MIT

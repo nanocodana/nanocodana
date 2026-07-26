@@ -10,20 +10,19 @@ import {
   createReadTool,
   createWriteTool
 } from './tools/index.js'
-import type { Sandbox, Tool } from './types.js'
+import type { Sandbox, Tool, VirtualShellOptions } from './types.js'
 
 const textEncoder = new TextEncoder()
 
 export type DefaultToolBackend =
-  | { fs: ToolFileSystem; virtualBash?: boolean }
-  | { sandbox: Sandbox; virtualBash?: boolean }
+  | { fs: ToolFileSystem; virtualBash?: boolean | VirtualShellOptions }
+  | { sandbox: Sandbox; virtualBash?: boolean | VirtualShellOptions }
 
-// `just-bash` is dynamic-imported only inside Bash.execute. This file
-// must NOT import it statically — otherwise bundlers pull the chunk
-// (~157 KB gzipped) into the main bundle whether the user calls Bash or not.
-// The `BashInstance` type alias is intentionally `any` to avoid even a
-// type-import dependency that some bundlers conservatively treat as a
-// runtime reference.
+// The shell is dynamic-imported only inside Bash.execute. This file must NOT
+// import it statically — otherwise bundlers pull it into the main chunk whether
+// or not the user ever calls Bash. `BashInstance` is a structural type rather
+// than a type-import for the same reason: some bundlers treat even a type-only
+// import as a runtime reference.
 type BashInstance = {
   exec: (
     command: string,
@@ -63,18 +62,32 @@ async function readSandboxContent(sandbox: Sandbox, path: string): Promise<strin
   return new TextDecoder().decode(new Uint8Array(arrayBuffer))
 }
 
-function createFsTools(fs: ToolFileSystem, virtualBash: boolean): Record<string, Tool> {
+function createFsTools(
+  fs: ToolFileSystem,
+  virtualBash: boolean | VirtualShellOptions
+): Record<string, Tool> {
+  const shellOptions: VirtualShellOptions =
+    typeof virtualBash === 'object' && virtualBash !== null ? virtualBash : {}
+
   // Cached Bash instance promise — first call to Bash.execute resolves it
-  // (loading the just-bash chunk), subsequent calls hit the cache. When
-  // virtualBash is false this closure is never reached, so a code-splitting
-  // bundler never *fetches* the chunk. It is still present in the build: no
-  // bundler can drop a reachable dynamic import based on a runtime flag.
+  // (loading the shell chunk), subsequent calls hit the cache. When virtualBash
+  // is false this closure is never reached, so a code-splitting bundler never
+  // *fetches* the chunk. It is still present in the build: no bundler can drop a
+  // reachable dynamic import based on a runtime flag.
+  //
+  // './shell/bundle.js' is the vendored, Node-free build of just-bash generated
+  // by build/bundle-shell.mjs. Importing just-bash directly here would reintroduce
+  // its static node:zlib import, which prevents the module from loading at all on
+  // workerd and in strict bundlers.
   let bashPromise: Promise<BashInstance> | undefined
   function getBash(): Promise<BashInstance> {
     if (!bashPromise) {
-      bashPromise = import('just-bash/browser').then(
+      bashPromise = import('./shell/bundle.js').then(
         (mod) =>
           new mod.Bash({
+            // Caller options first, so fs/cwd can never be overridden — the tool
+            // is scoped to this filesystem and working directory by contract.
+            ...shellOptions,
             fs: fs.rawFs,
             cwd: fs.cwd
           }) as unknown as BashInstance
@@ -233,11 +246,10 @@ function createSandboxTools(sandbox: Sandbox): Record<string, Tool> {
  * Creates default tools for either the shared in-memory filesystem backend
  * or a sandbox backend.
  *
- * `virtualBash` (default true) controls whether the in-memory Bash tool
- * (powered by `just-bash`) is included. Set to false to drop the Bash tool
- * AND prevent the `just-bash` chunk from being bundled. The sandbox backend
- * always exposes its own Bash tool — `virtualBash` only affects the
- * just-bash path.
+ * `virtualBash` (default true) controls the in-memory Bash tool. Set it to false
+ * to drop the tool and stop a code-splitting bundler fetching the shell chunk,
+ * or pass a `VirtualShellOptions` object to configure the shell. The sandbox
+ * backend always exposes its own Bash tool and ignores this.
  */
 export function createDefaultTools(backend: DefaultToolBackend): Record<string, Tool> {
   const virtualBash = backend.virtualBash ?? true

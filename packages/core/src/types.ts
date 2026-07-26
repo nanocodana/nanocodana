@@ -1,5 +1,5 @@
 import type { MCPServerConfig } from './mcp/types.js'
-import type { IFileSystem } from 'just-bash'
+import type { IFileSystem } from './storage/in-memory-fs/interface.js'
 import type { Skill } from './skills/skill-tool.js'
 
 export type ToolMiddlewareMode = 'auto' | 'hermes' | 'morphXml'
@@ -137,21 +137,73 @@ export interface NanoCodanaConfig {
    * Whether to include the in-memory virtual Bash tool (powered by just-bash).
    * Defaults to true for backward compatibility.
    *
-   * Set to false in browser apps that don't need shell access. When false, the
-   * Bash tool is not registered and the just-bash chunk is never *fetched* — the
-   * dynamic import in Bash.execute is the only reference. With a code-splitting
-   * bundler (webpack, Vite, Next.js) that saves ~157 KB gzipped on initial paint.
+   * Set to false in apps that don't need shell access. When false, the Bash tool
+   * is not registered and the shell chunk is never *fetched* — the dynamic import
+   * in Bash.execute is the only reference. With a code-splitting bundler
+   * (webpack, Vite, Next.js) that saves the shell on initial paint.
    *
-   * It does NOT shrink single-file bundles. Bundlers cannot eliminate a reachable
-   * dynamic import based on a runtime flag, so an esbuild/Workers build still
-   * contains just-bash either way (verified: byte-identical output). That matters
-   * on workerd, where just-bash's static `node:zlib` import is a boot failure —
-   * see apps/cloudflare for the fix.
+   * It does NOT shrink single-file bundles: no bundler can eliminate a reachable
+   * dynamic import based on a runtime flag, so an esbuild/Workers build contains
+   * the shell either way (verified — byte-identical output).
    *
-   * Note: this only controls the *virtual* Bash backed by just-bash. The
-   * sandbox-backed Bash tool (when a Sandbox is provided) is unaffected.
+   * Pass an object to configure the shell instead of just enabling it:
+   *
+   *   virtualBash: { env: { CI: '1' }, maxCommandCount: 500 }
+   *
+   * Note: this only controls the *virtual* Bash. The sandbox-backed Bash tool
+   * (when a Sandbox is provided) is unaffected.
    */
-  virtualBash?: boolean
+  virtualBash?: boolean | VirtualShellOptions
+}
+
+/**
+ * Configuration forwarded to the virtual shell (just-bash's `BashOptions`).
+ *
+ * Availability differs by package, because the shell build differs:
+ *
+ * - `@nanocodana/core` and `@nanocodana/browser` ship a **Node-free** build.
+ *   Commands needing native or wasm backends — `sqlite3`, `python3`, `js-exec`,
+ *   `tar`, `yq`, `xan` — are unavailable there regardless of these options, and
+ *   `gzip`/`gunzip`/`zcat`/`rg -z` throw (they require node:zlib).
+ * - `@nanocodana/nodejs` uses the full just-bash, where all of the above work.
+ *
+ * Options are passed through as given, so anything just-bash supports is
+ * reachable even if it isn't named here.
+ */
+export interface VirtualShellOptions {
+  /** Environment variables visible to the shell. */
+  env?: Record<string, string>
+  /**
+   * Restrict the shell to these commands. Note this is a *runtime* filter — it
+   * does not make the bundle smaller, since every command is still reachable.
+   */
+  commands?: string[]
+  /** Enable `python3`/`python`. Requires the full just-bash (Node only). */
+  python?: boolean
+  /** Enable `js-exec`, sandboxed JS via QuickJS. Requires the full just-bash. */
+  javascript?: boolean | Record<string, unknown>
+  /** Enable `curl`/`wget`. Without this (or `fetch`), network commands are absent. */
+  network?: Record<string, unknown>
+  /** Supply the fetch used by network commands. Also enables them. */
+  fetch?: typeof globalThis.fetch
+  /** Resource ceilings for a single `exec` (output size, live bytes, timeouts). */
+  executionLimits?: Record<string, unknown>
+  /** Named preset for the above. */
+  executionLimitProfile?: string
+  /** Max nesting depth for function calls and subshells. */
+  maxCallDepth?: number
+  /** Max commands executed in a single `exec`. */
+  maxCommandCount?: number
+  /** Max iterations per loop. */
+  maxLoopIterations?: number
+  /** Extra commands, defined with just-bash's `defineCommand`. */
+  customCommands?: unknown[]
+  /** Sandbox hardening. Leave at the default unless you know why you're changing it. */
+  defenseInDepth?: boolean | Record<string, unknown>
+  /** Values reported by `$$`, `$PPID`, `id`, etc. */
+  processInfo?: { pid?: number; ppid?: number; uid?: number; gid?: number }
+  /** Anything else just-bash accepts. */
+  [option: string]: unknown
 }
 
 /**

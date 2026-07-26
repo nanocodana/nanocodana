@@ -8,7 +8,8 @@ export type {
   SandboxCommandResult,
   Tool,
   ToolContext,
-  ToolMiddlewareMode
+  ToolMiddlewareMode,
+  VirtualShellOptions
 } from './types.js'
 export { prepareModelForAgent, resolveToolMiddlewareMode } from './model-preparation.js'
 export { promptCachingMiddleware, supportsAnthropicPromptCache } from './prompt-caching.js'
@@ -65,4 +66,9 @@ export { parseMCPConfig } from './mcp/index.js'
 // MCPClientManager is exported as a type only — its implementation is
 // dynamic-imported by NanoCodana internally. See mcp/index.ts.
 export type { MCPClientManager, MCPServerConfig, MCPConfig } from './mcp/index.js'
-export type { IFileSystem } from 'just-bash'
+// Sourced from our local copy rather than just-bash: the shell is vendored at
+// build time, so just-bash is a devDependency and a published .d.ts must not
+// reference it. The two interfaces are structurally identical (ours adds one
+// optional method), so a just-bash filesystem still satisfies this type — which
+// is what @nanocodana/nodejs relies on when it passes a ReadWriteFs.
+export type { IFileSystem } from './storage/in-memory-fs/interface.js'

@@ -1,5 +1,5 @@
 import { ToolLoopAgent, tool as createTool, experimental_generateImage } from 'ai'
-import type { IFileSystem } from 'just-bash'
+import type { IFileSystem } from './storage/in-memory-fs/interface.js'
 import type {
   Agent,
   AgentCallParameters,
@@ -187,9 +187,8 @@ export class NanoCodana<
       !config.tools || !!config.fs || config.initialFiles || config.onFilesChange || !!config.sandbox
     const shouldCreateContext = shouldCreateDefaultTools || typeof config.tools === 'function'
 
-    // virtualBash defaults to true (backward compat). When false, the Bash
-    // tool is not registered and just-bash is never referenced anywhere in
-    // the module graph — bundlers tree-shake it out completely.
+    // virtualBash defaults to true (backward compat). false drops the Bash tool;
+    // an object both enables it and configures the shell (see VirtualShellOptions).
     const virtualBash = config.virtualBash ?? true
 
     if (config.sandbox) {

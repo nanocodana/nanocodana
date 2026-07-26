@@ -1,28 +1,33 @@
 {
   "name": "@nanocodana/nodejs",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node build/bundle-shell.mjs",
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@nanocodana/core": "^0.1.0",
+    "@nanocodana/core": "^0.2.0",
     "ai": "^6.0.154",
     "chokidar": "^5.0.0",
     "fast-glob": "^3.3.3",
-    "just-bash": "^2.14.1",
     "minimatch": "^10.2.5",
+    "quickjs-emscripten": "^0.32.0",
     "turndown": "^7.2.4"
   },
+  "//optionalDependencies": "Native addons and prebuilt binaries that each unlock one capability and are dead weight otherwise. The shell dynamic-imports all three inside try/catch and reports an actionable error when one is missing, so `npm install --omit=optional` yields a smaller, working install with `tar -J`/`--zstd` and native ripgrep unavailable. Everything else — the other ~80 commands, sqlite3, python3, js-exec — is unaffected.",
   "optionalDependencies": {
-    "@vscode/ripgrep": "^1.18.0"
+    "@mongodb-js/zstd": "^2.0.0",
+    "@vscode/ripgrep": "^1.18.0",
+    "node-liblzma": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "@types/turndown": "^5.0.6",
+    "esbuild": "^0.28.1",
+    "just-bash": "^3.2.0",
     "typescript": "^6.0.2"
   },
   "description": "Run a NanoCodana coding agent over your real filesystem, with a sandboxed shell that can escalate to the host on approval.",
@@ -59,6 +64,7 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "vendor"
   ]
 }

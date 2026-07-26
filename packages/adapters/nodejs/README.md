@@ -2,8 +2,8 @@
 
 A [NanoCodana](https://github.com/nanocodana/nanocodana) coding agent over your
 **real filesystem** — point it at a directory and it gets the full file toolset
-plus a `Bash` tool that runs sandboxed and can escalate to the host shell with
-approval. For CLIs, servers, bots, scripts, and CI.
+plus a `Bash` tool that runs in a sandbox, and can optionally escalate to the
+host shell with approval. For CLIs, servers, bots, scripts, and CI.
 
 ```bash
 npm install @nanocodana/nodejs ai
@@ -38,9 +38,23 @@ and `.claude/skills/`, so skills you already keep for other agents just work.
 ## Approval and the Bash sandbox
 
 Tools named in `needsApproval` emit a `tool-approval-request` on the stream;
-push a `tool-approval-response` message and stream again to resume. Shell
-commands run in a virtual sandbox by default — escalating to the **host** shell
-(`host: true`) always requires approval, regardless of your config.
+push a `tool-approval-response` message and stream again to resume.
+
+Shell commands run in a **sandbox**: an interpreter over the working directory
+with 80+ built-in coreutils, no child processes, and no access to system
+binaries. Reaching the real machine shell requires opting in:
+
+```ts
+NodeAgent({ model, workingDirectory, hostShell: true })
+```
+
+**`hostShell` defaults to `false`** — handing out a shell isn't something a
+library should do implicitly. Leave it off for anything running someone else's
+prompts (a server, a hosted product, CI) and the agent has no path to the host at
+all: the `host` parameter isn't offered to the model, and an explicit `host: true`
+is refused rather than silently downgraded. Turn it on for a local developer tool
+on the user's own machine, where `git` and `npm` are the point. Host runs still
+always require approval.
 
 ## Search
 

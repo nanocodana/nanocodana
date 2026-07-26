@@ -1,5 +1,7 @@
 import { ToolFileSystem } from '@nanocodana/core'
-import { ReadWriteFs } from 'just-bash'
+// The vendored shell (build/bundle-shell.mjs), not the just-bash package:
+// just-bash is a devDependency here and does not exist in a consumer's tree.
+import { ReadWriteFs } from '../shell/lib/bundle.js'
 
 export class NodeFileSystem extends ToolFileSystem {
   private readonly workspaceRoot: string

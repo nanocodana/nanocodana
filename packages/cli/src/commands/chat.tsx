@@ -153,6 +153,24 @@ export function ChatMode({
         skillDirs: [],
         // A sane construction default; the live gate is passed per-call below.
         needsApproval: autoApprove ? NO_APPROVAL : APPROVAL_TOOLS,
+        // just-bash gates python3 and js-exec behind flags; without these the
+        // commands report "not available" even though the interpreters are
+        // already installed. Both run in-memory (CPython and QuickJS compiled to
+        // wasm) with no host access and under the same execution limits as the
+        // rest of the sandbox — strictly less privileged than `host: true`, which
+        // still requires approval.
+        //
+        // Deliberately NOT enabled: `network`/`fetch`, which would give the
+        // sandbox curl and wget. That is a real escalation — untrusted content
+        // the agent reads could direct it to exfiltrate — so network access stays
+        // with the approval-gated WebFetch tool.
+        virtualBash: { python: true, javascript: true },
+        // codana is a local developer tool running on the user's own machine, so
+        // it opts into host escalation — `git`, `npm`, `docker` and friends are
+        // the point. Every host run still goes through the approval prompt.
+        // The adapter defaults this off, which is the right default for anything
+        // running someone else's prompts.
+        hostShell: true,
       })
     }
     return true

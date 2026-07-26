@@ -1,7 +1,13 @@
 import {
   NanoCodana,
 } from '@nanocodana/core'
-import type { IFileSystem, InitialFile, MCPServerConfig, Skill } from '@nanocodana/core'
+import type {
+  IFileSystem,
+  InitialFile,
+  MCPServerConfig,
+  Skill,
+  VirtualShellOptions
+} from '@nanocodana/core'
 import { IndexedDBFileSystem } from './storage/indexeddb-fs.js'
 
 export interface BrowserAgentConfig {
@@ -61,11 +67,15 @@ export interface BrowserAgentConfig {
    */
   skillDirs?: string[]
   /**
-   * Include the in-memory virtual Bash tool (just-bash). Defaults to true.
-   * Set false to drop ~157 KB gzipped from the bundle for apps that don't
-   * need shell access.
+   * Include the in-memory virtual Bash tool. Defaults to true. Set false to drop
+   * the shell from the bundle in apps that don't need it, or pass an object to
+   * configure it — see `VirtualShellOptions`.
+   *
+   * The shell here is core's Node-free build, so commands needing native or wasm
+   * backends (`sqlite3`, `python3`, `js-exec`, `tar`) are unavailable, and
+   * `gzip`/`gunzip`/`zcat` throw. Everything else works in the tab.
    */
-  virtualBash?: boolean
+  virtualBash?: boolean | VirtualShellOptions
 }
 
 export function BrowserAgent(config: BrowserAgentConfig): NanoCodana {

@@ -1,4 +1,4 @@
-import type { IFileSystem } from 'just-bash'
+import type { IFileSystem } from '../storage/in-memory-fs/interface.js'
 import { parseSkill } from './parser.js'
 import type { Skill } from './skill-tool.js'
 

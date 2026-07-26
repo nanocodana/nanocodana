@@ -29,6 +29,15 @@ jobs:
         run: node smoke.test.mjs
         working-directory: packages/cli
 
+      # Exercises the shell across all four just-bash backends — pure JS, worker,
+      # wasm, native. The last three load files at runtime, so they break silently
+      # when the package is bundled or vendored without its assets: the module
+      # still imports and the command still exists, it just fails when run. The
+      # smoke tests above import source modules and cannot catch that.
+      - name: Shell backend matrix
+        run: node shell.test.mjs
+        working-directory: packages/cli
+
       # The packages are what ship — fail if a manifest would publish something
       # broken (missing files field, bad exports, unresolvable entry point).
       - name: Verify publishable tarballs

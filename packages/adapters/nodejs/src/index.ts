@@ -1,4 +1,10 @@
-import { NanoCodana, type Tool, type MCPServerConfig, type Skill } from '@nanocodana/core'
+import {
+  NanoCodana,
+  type Tool,
+  type MCPServerConfig,
+  type Skill,
+  type VirtualShellOptions
+} from '@nanocodana/core'
 import { NodeFileSystem } from './storage/node-fs.js'
 import {
   createNodeGlobTool,
@@ -42,9 +48,34 @@ export interface NodeAgentConfig {
   skillDirs?: string[]
   /**
    * Include the virtual Bash tool (just-bash) operating against the real
-   * Node filesystem. Defaults to true.
+   * Node filesystem. Defaults to true. Pass an object to configure the shell —
+   * see `VirtualShellOptions`.
+   *
+   * This adapter uses the full just-bash, so unlike core and the browser adapter
+   * the native/wasm-backed commands are available: `sqlite3` works out of the
+   * box, and `{ python: true }` / `{ javascript: true }` enable `python3` and
+   * `js-exec`.
    */
-  virtualBash?: boolean
+  virtualBash?: boolean | VirtualShellOptions
+  /**
+   * Allow the Bash tool to escalate to the **real host shell** with
+   * `host: true`. Defaults to **false**.
+   *
+   * Off, the agent is confined to the sandbox: an interpreter over the working
+   * directory with no child processes and no access to system binaries. That is
+   * the right default for anything running someone else's prompts — a server, a
+   * hosted product, a CI job — where handing out a shell is not something to do
+   * implicitly.
+   *
+   * On, `host: true` runs commands via `child_process` and always requires
+   * approval through `needsApproval`. Appropriate for a local developer tool
+   * operating on the user's own machine, which is why `codana` enables it.
+   *
+   * Note this is a *capability* gate, not an approval gate. With it off the
+   * parameter is not offered to the model at all, and an explicit `host: true`
+   * is refused rather than quietly downgraded to a sandbox run.
+   */
+  hostShell?: boolean
 }
 
 export function NodeAgent(config: NodeAgentConfig): NanoCodana {
@@ -61,13 +92,29 @@ export function NodeAgent(config: NodeAgentConfig): NanoCodana {
   // the agent. Force either via `tools: { Grep: ... }`.
   const rgPath = resolveRipgrepPath()
 
+  const shellOptions =
+    typeof config.virtualBash === 'object' && config.virtualBash !== null
+      ? config.virtualBash
+      : {}
+
   const nodeTools: Record<string, Tool> = {
-    Bash: createNodeBashTool(fs, workingDirectory),
     Glob: createNodeGlobTool(workingDirectory),
     Grep: rgPath
       ? createRipgrepTool(workingDirectory, rgPath)
       : createNodeGrepTool(workingDirectory),
     WebFetch: createNodeWebFetchTool()
+  }
+
+  // `virtualBash: false` now genuinely drops the tool. It previously only turned
+  // off core's virtual Bash while this adapter added its own unconditionally, so
+  // the option did nothing — contradicting its own documentation.
+  if (config.virtualBash !== false) {
+    nodeTools.Bash = createNodeBashTool(
+      fs,
+      workingDirectory,
+      shellOptions,
+      config.hostShell ?? false,
+    )
   }
 
   // Merge built-in Node.js tools with custom tools
@@ -88,8 +135,10 @@ export function NodeAgent(config: NodeAgentConfig): NanoCodana {
     needsApproval: config.needsApproval,
     skills: config.skills,
     skillDirs: config.skillDirs,
-    // The node Bash tool replaces the core virtual Bash.
-    virtualBash: config.virtualBash ?? false,
+    // Always false: the node Bash tool above replaces core's virtual Bash, and
+    // enabling both would load core's vendored shell for a tool that is then
+    // immediately overridden.
+    virtualBash: false,
   })
 }
 

@@ -7,7 +7,7 @@
     "node": ">=22.0.0"
   },
   "bin": {
-    "codana": "./dist/bundle/lib/codana.mjs"
+    "codana": "dist/bundle/lib/codana.mjs"
   },
   "files": [
     "dist/bundle",

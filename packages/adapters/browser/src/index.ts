@@ -73,7 +73,8 @@ export interface BrowserAgentConfig {
    *
    * The shell here is core's Node-free build, so commands needing native or wasm
    * backends (`sqlite3`, `python3`, `js-exec`, `tar`) are unavailable, and
-   * `gzip`/`gunzip`/`zcat` throw. Everything else works in the tab.
+   * `gzip`/`gunzip`/`zcat` work — the vendored build supplies its own
+   * compression rather than node:zlib. Everything else works in the tab.
    */
   virtualBash?: boolean | VirtualShellOptions
 }

@@ -13,13 +13,32 @@
 //
 // esbuild inlines the dynamic import below (no code splitting), so the bin
 // remains one file.
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 export { NodeAgent, loadSkillsFromDirs } from '@nanocodana/nodejs'
 
-const isMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
+/**
+ * True when this module is the process entry point.
+ *
+ * argv[1] must be realpath'd first. npm installs a bin as a *symlink*
+ * (node_modules/.bin/codana -> ../@nanocodana/cli/dist/bundle/lib/codana.mjs),
+ * and Node resolves the ESM main module to its real path while leaving argv[1]
+ * as the link. Comparing them raw makes this false for every installed copy, so
+ * the CLI exits 0 having done nothing — `npx`, `npm i -g` and local bin alike.
+ * Tests that invoke the bundle by its real path do not see it.
+ */
+function isEntryPoint(): boolean {
+  const argv1 = process.argv[1]
+  if (!argv1) return false
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(argv1)).href
+  } catch {
+    // argv[1] can be a name that isn't a file (a REPL eval, a deleted script).
+    return import.meta.url === pathToFileURL(argv1).href
+  }
+}
 
-if (isMain) {
+if (isEntryPoint()) {
   await import('./cli-main.js')
 }

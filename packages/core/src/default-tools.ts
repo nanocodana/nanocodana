@@ -246,7 +246,13 @@ function createSandboxTools(sandbox: Sandbox): Record<string, Tool> {
  * backend always exposes its own Bash tool and ignores this.
  */
 export function createDefaultTools(backend: DefaultToolBackend): Record<string, Tool> {
-  const virtualBash = backend.virtualBash ?? true
+  // `virtualBash` defaults to true, but under `@nanocodana/core/no-bash` there
+  // is no shell to run — so honouring the default would advertise a Bash tool
+  // whose every call is guaranteed to reject. The model spends tokens on the
+  // schema, reaches for it, and burns a round-trip discovering it cannot work.
+  // Registering nothing is the honest answer; the "no virtual shell registered"
+  // error remains for anyone who configured a shell and lost it some other way.
+  const virtualBash = (backend.virtualBash ?? true) && getShellFactory() !== undefined
   if ('sandbox' in backend) {
     return createSandboxTools(backend.sandbox)
   }

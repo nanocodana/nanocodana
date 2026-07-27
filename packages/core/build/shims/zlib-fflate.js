@@ -12,15 +12,35 @@
 // Every call site passes `{ maxOutputLength }` alongside an
 // `executionScope.reserveBytes(...)` reservation. Node's zlib enforces that cap
 // *during* inflation and throws before allocating past it — that is what makes a
-// decompression bomb a bounded error rather than an OOM. fflate's own
-// `gunzipSync` has no such option, so checking the length afterwards would mean
-// the bomb is already in memory: a 40 kB payload expanding 1024x would take out
-// a 128 MB isolate before the check ran.
+// decompression bomb a bounded error rather than an OOM.
 //
-// So gunzip here drives fflate's *streaming* decoder, which is synchronous, and
-// counts bytes as chunks arrive. Exceeding the cap aborts mid-inflation, which is
-// the guarantee the call sites are written against.
+// fflate cannot be handed that job directly. Its `gunzipSync` has no such
+// option, and its streaming `Gunzip` decides its own output granularity: push a
+// whole gzip stream in one call and `ondata` fires once with the entire payload.
+// Measured — a 200 kB bomb yields a single 200 MB chunk and ~300 MB of RSS
+// before any callback can object. Counting bytes as they arrive is therefore
+// NOT sufficient on its own; it is a post-hoc check wearing a streaming costume,
+// which is exactly the failure this comment used to claim it avoided.
+//
+// What actually bounds it is feeding the *input* in slices, because the decoder
+// cannot emit more than one slice's worth per call. DEFLATE's maximum expansion
+// is ~1032:1, so a slice of `maxOutputLength / 1032` bytes can overshoot the cap
+// by at most one cap's worth before the counter trips. Peak memory is then
+// ~2x the cap rather than the full bomb.
 import { gzipSync as fflateGzip, Gunzip } from 'fflate'
+
+/** DEFLATE's worst-case expansion ratio (RFC 1951 stored/huffman bounds). */
+const MAX_DEFLATE_RATIO = 1032
+
+/**
+ * Input slice size that keeps a single decoder callback within one cap.
+ * Clamped so a tiny cap doesn't degenerate into byte-at-a-time pushes and a
+ * huge one doesn't reintroduce an unbounded chunk.
+ */
+function inputSliceFor(maxOutputLength) {
+  if (!Number.isFinite(maxOutputLength)) return 256 * 1024
+  return Math.min(256 * 1024, Math.max(1024, Math.floor(maxOutputLength / MAX_DEFLATE_RATIO)))
+}
 
 /** Node accepts Buffer/Uint8Array; latin1 strings appear on just-bash's ByteString paths. */
 function toBytes(data) {
@@ -51,21 +71,32 @@ export function gzipSync(data, options = {}) {
 
 export function gunzipSync(data, options = {}) {
   const max = options.maxOutputLength ?? Infinity
+  const bytes = toBytes(data)
   const chunks = []
   let total = 0
+
   const inflate = new Gunzip((chunk) => {
     total += chunk.length
-    // Thrown from inside push() below — aborts before the next chunk allocates.
+    // Thrown from inside push() below, so the next slice is never decoded.
     if (total > max) throw new RangeErrorTooLarge(max)
     chunks.push(chunk)
   })
-  inflate.push(toBytes(data), true)
+
+  // Slice the input rather than pushing it whole — see the header. Without this
+  // the decoder emits the entire payload in one callback and the check above
+  // runs only after the bomb is already resident.
+  const slice = inputSliceFor(max)
+  for (let offset = 0; offset < bytes.length; offset += slice) {
+    const end = Math.min(offset + slice, bytes.length)
+    inflate.push(bytes.subarray(offset, end), end === bytes.length)
+  }
+
   if (chunks.length === 1) return chunks[0]
   const out = new Uint8Array(total)
-  let offset = 0
+  let written = 0
   for (const chunk of chunks) {
-    out.set(chunk, offset)
-    offset += chunk.length
+    out.set(chunk, written)
+    written += chunk.length
   }
   return out
 }

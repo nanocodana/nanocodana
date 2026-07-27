@@ -164,7 +164,8 @@ export interface NanoCodanaConfig {
  * - `@nanocodana/core` and `@nanocodana/browser` ship a **Node-free** build.
  *   Commands needing native or wasm backends — `sqlite3`, `python3`, `js-exec`,
  *   `tar`, `yq`, `xan` — are unavailable there regardless of these options, and
- *   `gzip`/`gunzip`/`zcat`/`rg -z` throw (they require node:zlib).
+ *   `gzip`/`gunzip`/`zcat`/`rg -z` work — the vendored build supplies its own
+ *   compression rather than node:zlib.
  * - `@nanocodana/nodejs` uses the full just-bash, where all of the above work.
  *
  * Options are passed through as given, so anything just-bash supports is

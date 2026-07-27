@@ -37,12 +37,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "quickjs-emscripten": "*"
+    "quickjs-emscripten": "^0.32.0"
   },
   "optionalDependencies": {
-    "@mongodb-js/zstd": "*",
-    "@vscode/ripgrep": "*",
-    "node-liblzma": "*"
+    "@mongodb-js/zstd": "^7.0.0",
+    "@vscode/ripgrep": "^1.18.0",
+    "node-liblzma": "^2.0.3"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

@@ -130,5 +130,67 @@ async function bundledModules(entry) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Install the tarball and run the bin the way a user does.
+//
+// This is the check whose absence let a total failure ship-ready: the entry
+// guard compared `import.meta.url` against a raw `process.argv[1]`, npm installs
+// a bin as a *symlink*, and Node realpaths the ESM main module — so `codana`
+// exited 0 having done nothing, on every install path there is. Everything that
+// existed at the time invoked `dist/bundle/lib/codana.mjs` directly, by its real
+// path, which is the one route that happens to work.
+//
+// Skipped with SKIP_INSTALL_TEST=1 for a fast inner loop; CI must not set it.
+if (process.env.SKIP_INSTALL_TEST === '1') {
+  console.log('- installed-bin checks skipped (SKIP_INSTALL_TEST=1)')
+} else {
+  const { execFileSync } = await import('node:child_process')
+  const { mkdtempSync, rmSync, existsSync: exists } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+
+  const sandbox = mkdtempSync(join(tmpdir(), 'nanocodana-install-'))
+  try {
+    const tarball = execFileSync('npm', ['pack', '--silent', '--pack-destination', sandbox], {
+      cwd: here,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n')
+      .pop()
+
+    execFileSync('npm', ['init', '-y'], { cwd: sandbox, stdio: 'ignore' })
+    execFileSync('npm', ['install', join(sandbox, tarball), '--silent', '--no-audit', '--no-fund'], {
+      cwd: sandbox,
+      stdio: 'ignore',
+    })
+
+    const bin = join(sandbox, 'node_modules', '.bin', 'codana')
+    check('npm creates the bin', exists(bin), [`missing ${bin}`])
+
+    // Through the symlink, exactly as `npx` / `npm i -g` / a package script do.
+    let version = ''
+    try {
+      version = execFileSync(bin, ['--version'], { encoding: 'utf8' }).trim()
+    } catch (err) {
+      version = `<failed: ${err.message.split('\n')[0]}>`
+    }
+    check(`installed bin runs via its symlink (got ${JSON.stringify(version)})`, /^\d+\.\d+\.\d+/.test(version), [
+      'the bin produced no usable output — the entry-point guard is not matching',
+      'argv[1] is the symlink; Node realpaths import.meta.url. Compare realpathSync(argv[1]).',
+    ])
+
+    // The built-in skills ship at the package root while the bundle lives three
+    // levels down; a fixed '..' silently found nothing and /forge stopped working.
+    const skillsDir = join(sandbox, 'node_modules', '@nanocodana', 'cli', 'example-skills')
+    check('built-in skills ship with the package', exists(join(skillsDir, 'build-agent')), [
+      `missing ${join(skillsDir, 'build-agent')} — /forge is advertised in --help`,
+    ])
+  } catch (err) {
+    check('installed-bin checks ran', false, [err.message.split('\n')[0]])
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true })
+  }
+}
+
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILED`)
 process.exit(failures === 0 ? 0 : 1)

@@ -20,7 +20,7 @@
 //
 // Point NANOCODANA_ADAPTER at an alternative build to diff it against this
 // baseline. Same matrix, same expectations — any divergence is a packaging bug.
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -28,6 +28,10 @@ const adapter = process.env.NANOCODANA_ADAPTER || '@nanocodana/nodejs'
 const { NodeAgent } = await import(adapter)
 
 const dir = mkdtempSync(join(tmpdir(), 'nanocodana-shell-'))
+// Registered up front rather than cleaned up at the end: several assertions
+// below throw by design when a contract changes, and an unhandled rejection
+// would otherwise leave a workspace behind in tmpdir on every failed run.
+process.on('exit', () => rmSync(dir, { recursive: true, force: true }))
 writeFileSync(join(dir, 'a.txt'), 'hello\nworld\n')
 writeFileSync(join(dir, 'b.js'), 'const x = 1\n')
 
@@ -105,30 +109,41 @@ const OPTIONAL_MATRIX = [
 
 let failures = 0
 
-async function run(target, [backend, label, command, expected]) {
+/**
+ * Execute one case. Shared by both runners, which previously carried identical
+ * copies of this and would have drifted the moment either grew a timeout or an
+ * extra assertion.
+ */
+async function exec(target, command) {
   const bash = target.tools?.Bash
-  if (!bash) {
+  if (!bash) return { stdout: '', stderr: 'no Bash tool registered', exitCode: -1, missing: true }
+  try {
+    const r = await bash.execute({ command })
+    return {
+      stdout: String(r.stdout ?? '').trim(),
+      stderr: String(r.stderr ?? '').trim(),
+      exitCode: r.exitCode,
+    }
+  } catch (err) {
+    return { stdout: '', stderr: `THREW: ${err.message}`, exitCode: -1 }
+  }
+}
+
+async function run(target, [backend, label, command, expected]) {
+  const { stdout, stderr, exitCode, missing } = await exec(target, command)
+  if (missing) {
     console.log(`✗ [${backend}] ${label} — no Bash tool registered`)
     failures++
     return
   }
-  let stdout = ''
-  let stderr = ''
-  let exitCode = -1
-  try {
-    const r = await bash.execute({ command })
-    stdout = String(r.stdout ?? '').trim()
-    stderr = String(r.stderr ?? '').trim()
-    exitCode = r.exitCode
-  } catch (err) {
-    stderr = `THREW: ${err.message}`
-  }
-  const ok = stdout === expected
+  // Exit status is part of the contract: a command that prints the right bytes
+  // while failing is not a passing command.
+  const ok = stdout === expected && exitCode === 0
   console.log(`${ok ? '✓' : '✗'} [${backend}] ${label}`)
   if (!ok) {
     failures++
     console.log(`   command:  ${command}`)
-    console.log(`   expected: ${JSON.stringify(expected)}`)
+    console.log(`   expected: ${JSON.stringify(expected)} (exit 0)`)
     console.log(`   got:      ${JSON.stringify(stdout)}  exit=${exitCode}`)
     if (stderr) console.log(`   stderr:   ${JSON.stringify(stderr.slice(0, 160))}`)
   }
@@ -138,28 +153,17 @@ async function run(target, [backend, label, command, expected]) {
 // is a supported install, not a broken one, so the assertion is on *how* it
 // fails, not whether it succeeds.
 async function runOptional(target, [backend, label, command, expected, missing]) {
-  const bash = target.tools?.Bash
-  if (!bash) {
+  const r = await exec(target, command)
+  if (r.missing) {
     console.log(`✗ [${backend}] ${label} — no Bash tool registered`)
     failures++
     return
   }
-  let stdout = ''
-  let stderr = ''
-  let exitCode = -1
-  try {
-    const r = await bash.execute({ command })
-    stdout = String(r.stdout ?? '').trim()
-    stderr = String(r.stderr ?? '').trim()
-    exitCode = r.exitCode
-  } catch (err) {
-    stderr = `THREW: ${err.message}`
-  }
-  if (stdout === expected) {
+  if (r.stdout === expected && r.exitCode === 0) {
     console.log(`✓ [${backend}] ${label} — installed`)
     return
   }
-  if (missing.test(stderr) && !stderr.startsWith('THREW:')) {
+  if (missing.test(r.stderr) && !r.stderr.startsWith('THREW:')) {
     console.log(`✓ [${backend}] ${label} — not installed, degraded cleanly`)
     return
   }
@@ -167,8 +171,8 @@ async function runOptional(target, [backend, label, command, expected, missing])
   console.log(`✗ [${backend}] ${label}`)
   console.log(`   command:  ${command}`)
   console.log(`   expected: ${JSON.stringify(expected)} or an error matching ${missing}`)
-  console.log(`   got:      ${JSON.stringify(stdout)}  exit=${exitCode}`)
-  if (stderr) console.log(`   stderr:   ${JSON.stringify(stderr.slice(0, 160))}`)
+  console.log(`   got:      ${JSON.stringify(r.stdout)}  exit=${r.exitCode}`)
+  if (r.stderr) console.log(`   stderr:   ${JSON.stringify(r.stderr.slice(0, 160))}`)
 }
 
 console.log(`shell matrix via ${adapter}\n`)
@@ -197,6 +201,10 @@ for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
   // dist internals, so this block only works inside the repo — which is right,
   // it is testing how core is *built*, not what it exposes.
   const coreDir = new URL('../core/', import.meta.url)
+  if (!existsSync(new URL('dist/shell/bundle.js', coreDir))) {
+    console.log("✗ [core-shell] core is not built — run `npm run build` first")
+    failures++
+  } else {
   const { Bash, InMemoryFs } = await import(new URL('dist/shell/bundle.js', coreDir).href)
   const coreShell = () =>
     new Bash({ fs: new InMemoryFs({ '/a.txt': 'hello\nworld\n' }), cwd: '/' })
@@ -234,6 +242,7 @@ for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
   }
   console.log(`${bounded ? '✓' : '✗'} [core-shell] decompression bomb is bounded mid-inflation`)
   if (!bounded) failures++
+  }
 }
 
 // Host escalation is a capability gate, not just an approval gate: with it off
@@ -270,7 +279,6 @@ for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
   }
 }
 
-rmSync(dir, { recursive: true, force: true })
 
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILED`)
 process.exit(failures === 0 ? 0 : 1)

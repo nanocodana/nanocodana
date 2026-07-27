@@ -8,7 +8,7 @@
   // "alias" block. @nanocodana/core ships a Node-free build of its virtual shell,
   // so this Worker runs with zero Node compatibility surface and zero bundler
   // configuration. Bash, Grep, Glob and the file tools all work as-is; only
-  // gzip/gunzip/zcat/rg -z are unavailable (they need node:zlib).
+  // gzip/gunzip/zcat/rg -z work — the vendored build has its own compression.
   //
   // Earlier revisions of this example needed an alias here. If you're on an older
   // @nanocodana/core, see git history for that version.

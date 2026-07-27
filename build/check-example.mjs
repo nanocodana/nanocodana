@@ -20,7 +20,7 @@
 import { readdir } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { join, extname, relative } from 'node:path'
+import { join, extname, relative, resolve } from 'node:path'
 
 const target = process.argv[2]
 if (!target) {
@@ -29,6 +29,29 @@ if (!target) {
 }
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs'])
+
+// Dependencies the example declares. Importing a package it never declared is
+// the failure that keeps recurring here — the CLI lost `ink`, `meow` and later
+// `esbuild` exactly that way, each working only because npm had hoisted them —
+// so check the manifest rather than trusting resolution to reveal it.
+//
+// (Resolution itself stays as `import(pkg)`, which finds the workspace copy.
+// Resolving from the example's own directory would be stricter, but
+// createRequire uses the `require` condition and these packages are ESM-only.
+// In a workspace the two resolve to the same file anyway; the manifest check is
+// what has actual teeth.)
+const declared = (() => {
+  try {
+    const manifest = JSON.parse(readFileSync(join(resolve(target), 'package.json'), 'utf8'))
+    return new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.devDependencies ?? {}),
+      ...Object.keys(manifest.peerDependencies ?? {}),
+    ])
+  } catch {
+    return null
+  }
+})()
 
 async function sourceFiles(dir) {
   const found = []
@@ -68,6 +91,11 @@ for (const file of files) {
   }
 
   for (const [pkg, names] of nanocodanaImports(readFileSync(file, 'utf8'))) {
+    if (declared && !declared.has(pkg)) {
+      failures++
+      console.log(`✗ ${shown} — imports ${pkg}, which is not in this example's package.json`)
+      continue
+    }
     let exports
     try {
       exports = await import(pkg)

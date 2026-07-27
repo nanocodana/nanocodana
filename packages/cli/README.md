@@ -38,6 +38,36 @@ codana config --provider custom    --base-url https://openrouter.ai/api/v1 --api
 
 Type `@` to reference project files — the agent gets the path, not a paste.
 
+## Non-interactive: `codana -p`
+
+One prompt, no TUI, exit when done — so it composes with everything else:
+
+```bash
+codana -p "write a commit message for the staged diff" | pbcopy
+git diff | codana -p "review this"
+codana -p "which tests are failing?" --json | jq -r .text
+```
+
+Piped stdin becomes context. Answers go to stdout and progress to stderr, so a
+pipe receives only the answer. `--json` gives you one object with the text, the
+tools used, which were denied, and token usage.
+
+**Without `--yolo`, anything that could change your files is denied and the run
+exits 2.** Nobody is there to approve, so `-p` reads, searches and reasons — and
+tells you what it wanted to do instead of doing it. That includes the sandboxed
+shell: it operates on your real working directory, so leaving it open while
+denying `Write` just means the model reaches for `echo > file` instead. `--yolo`
+allows everything, including your host shell.
+
+| exit | meaning |
+|---|---|
+| `0` | done |
+| `1` | error |
+| `2` | something was denied — re-run with `--yolo` to allow it |
+
+MCP servers are passed only with `--yolo`, since a deny-list of tool names can't
+cover names it doesn't know.
+
 ## Agent Skills
 
 Skills load from `~/.agents/skills`, `~/.claude/skills`, and the same directories

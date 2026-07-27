@@ -94,11 +94,16 @@ export async function runPrint(options: PrintOptions): Promise<number> {
     model,
     workingDirectory: process.cwd(),
     // MCP servers only with --yolo. GATED_TOOLS is a list of *names*, and an MCP
-    // server contributes names we don't know, so nothing here can deny them —
-    // a configured filesystem or git server would be fully callable while the
-    // run reported that everything was blocked. (Core compounds this: it applies
-    // the approval policy only to its built-in tools, so even a predicate policy
-    // never sees MCP tools. Worth fixing there too, independently of this mode.)
+    // server contributes names we don't know, so nothing here can deny them — a
+    // configured filesystem or git server would be fully callable while the run
+    // reported that everything was blocked, and exit 2 would be a lie.
+    //
+    // This stands on its own: a developer who configures an MCP server has
+    // granted it deliberately, so the issue is not the grant but that `-p`
+    // promises "nothing mutating ran" and cannot keep that promise for names it
+    // has never seen. (Core separately applies its approval policy only to
+    // built-in tools, so a predicate policy never sees MCP tools either. Worth
+    // fixing there, but this gate does not depend on it.)
     mcpServers: options.yolo ? getMCPServers() : {},
     skills: options.skills as never,
     // The CLI has already loaded every skills directory; don't rescan.

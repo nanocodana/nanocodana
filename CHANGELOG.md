@@ -110,6 +110,50 @@ This is a **capability** gate, not just an approval gate. With it off:
 Set `hostShell: true` to restore the previous behaviour. Host runs still require
 approval via `needsApproval`.
 
+### Added: `codana -p` — one prompt, no TUI
+
+The CLI could only be used interactively: `cli.input[0]` was read as a command
+name, so `codana "fix the bug"` was an unknown command, and a piped invocation
+crashed inside Ink with `Raw mode is not supported`. Now:
+
+```bash
+codana -p "write a commit message" | pbcopy
+git diff | codana -p "review this"
+codana -p "which tests are failing?" --json | jq -r .text
+```
+
+Piped stdin becomes context, so the caller doesn't have to quote a diff into the
+prompt. Streamed text goes to stdout and progress to stderr, so a pipe receives
+only the answer. `--json` emits one object with the text, the tools used, which
+were denied, and token usage.
+
+**Approval-gated tools are denied by default, and the run exits 2.** There is
+nobody to answer a prompt, and the stream cannot resume until every request has a
+response, so the only options are yes to everything or no to everything. No is
+the default, which makes `-p` safe to pipe into without reading this first: it
+reads, searches and reasons across the project, and reports what it wanted to do
+rather than doing it. `--yolo` answers yes, including host-shell escalation.
+
+Two consequences worth knowing:
+
+- **`Bash` is denied too**, unlike in interactive chat where it self-governs via
+  its `host` argument. Sandbox runs are only harmless when a human is watching:
+  with `Write` denied and `Bash` free, the model simply reaches for `echo > file`
+  and the denial becomes theatre. That is measured, not theoretical — it did
+  exactly that, wrote the file, and the run still exited 2 claiming it had been
+  blocked. So without `--yolo` what remains genuinely cannot mutate: `Read`,
+  `Grep`, `Glob`, `LS`.
+- **MCP servers are only passed with `--yolo`.** The deny-list is a list of tool
+  *names*, and an MCP server contributes names we don't know, so nothing could
+  deny them — a configured filesystem or git server would be fully callable while
+  the run reported everything blocked.
+
+Exit codes: `0` ok, `1` error, `2` something was denied — so a script can tell
+"failed" from "refused".
+
+Restoring the sandbox safely, by backing it with a read-only filesystem instead
+of a longer deny-list, is planned for a later release.
+
 ### Added: `virtualBash` accepts configuration
 
 `virtualBash` now takes `boolean | VirtualShellOptions`, forwarded to just-bash:

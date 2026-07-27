@@ -70,8 +70,24 @@ export function gzipSync(data, options = {}) {
 }
 
 export function gunzipSync(data, options = {}) {
-  const max = options.maxOutputLength ?? Infinity
+  // A non-numeric or NaN cap must not silently mean "unbounded": `total > NaN`
+  // is always false, so the entire bomb guarantee would disappear on a caller
+  // bug rather than failing loudly. Infinity stays a legitimate "no limit".
+  const requested = options.maxOutputLength ?? Infinity
+  if (typeof requested !== 'number' || Number.isNaN(requested) || requested < 0) {
+    throw new TypeError(`maxOutputLength must be a non-negative number, got ${String(requested)}`)
+  }
+  const max = requested
   const bytes = toBytes(data)
+
+  // node's zlib rejects an empty payload (Z_BUF_ERROR). Returning an empty
+  // buffer instead would make a truncated or zero-length archive look like a
+  // valid empty file, so `gunzip`/`zcat` would report success on corrupt input.
+  if (bytes.length === 0) {
+    const err = new Error('unexpected end of file')
+    err.code = 'Z_BUF_ERROR'
+    throw err
+  }
   const chunks = []
   let total = 0
 

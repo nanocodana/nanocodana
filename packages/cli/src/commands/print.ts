@@ -129,10 +129,13 @@ export async function runPrint(options: PrintOptions): Promise<number> {
   // One iteration per approval round: the stream halts when it needs answers,
   // we record a response for every request, then resume. Bounded because each
   // round must answer at least one request, and denied tools are not re-asked.
-  for (let round = 0; round < 32; round++) {
+  const MAX_ROUNDS = 32
+  let hitRoundCap = true
+  for (let round = 0; round < MAX_ROUNDS; round++) {
     const approvals: Array<{ approvalId: string; toolName: string; toolCallId?: string }> = []
 
     let result: any
+    let response: any
     try {
       result = await agent.stream({ messages } as never)
 
@@ -153,13 +156,16 @@ export async function runPrint(options: PrintOptions): Promise<number> {
           throw chunk.error ?? new Error('stream error')
         }
       }
+      // Inside the try: this settles separately from the iterator and rejects on
+      // its own (a failed final request, an aborted call). Awaiting it outside
+      // turned a reportable error into an unhandled rejection and a stack trace.
+      response = await result.response
     } catch (err: any) {
       if (!options.json && text && !text.endsWith('\n')) process.stdout.write('\n')
       process.stderr.write(`Error: ${err.message}\n`)
       return 1
     }
 
-    const response = await result.response
     if (response?.messages) messages.push(...response.messages)
 
     try {
@@ -173,7 +179,10 @@ export async function runPrint(options: PrintOptions): Promise<number> {
       /* usage is not always reported */
     }
 
-    if (approvals.length === 0) break
+    if (approvals.length === 0) {
+      hitRoundCap = false
+      break
+    }
 
     // Every request needs a response before the stream can resume; one missing
     // answer fails the next call with MissingToolResultsError.
@@ -202,6 +211,14 @@ export async function runPrint(options: PrintOptions): Promise<number> {
         status(`✗ denied ${approval.toolName} — re-run with --yolo to allow it`)
       }
     }
+  }
+
+  if (hitRoundCap) {
+    // Reaching the cap means the model kept asking for tools it had already been
+    // refused. The answer below is whatever it managed in the meantime.
+    process.stderr.write(
+      `Stopped after ${MAX_ROUNDS} approval rounds — the result may be incomplete.\n`,
+    )
   }
 
   if (options.json) {

@@ -65,6 +65,13 @@ output and binaries. A missing binary only makes search slower — it never brea
 the agent. Force one with `tools: { Grep: createNodeGrepTool(cwd) }` or
 `createRipgrepTool(cwd)`.
 
+## Node version
+
+`>=20.18.1`, with one exception: `{ javascript: true }` enables `js-exec`, whose
+worker imports `stripTypeScriptTypes` from `node:module` and therefore needs
+**Node 22+**. It's off by default, so 20 remains fully supported unless you turn
+it on. (`@nanocodana/cli` enables it by default and declares 22 accordingly.)
+
 ## Install size
 
 A default install is **141 MB across 212 packages**. That number surprises

@@ -78,9 +78,20 @@ const MATRIX = [
   ['native', 'tar round-trip', 'tar -cf out.tar a.txt && tar -tf out.tar', 'a.txt'],
 ]
 
+// js-exec's worker imports `stripTypeScriptTypes` from node:module, which does
+// not exist before Node 22 — just-bash declares engines >=20.18.1 but this one
+// command needs 22. The CLI raises its own floor to 22 because it enables
+// js-exec by default; the Node adapter stays at 20.18.1 because it does not.
+// Reported rather than silently skipped: a quiet skip is how a capability stops
+// being tested without anyone noticing.
+const NODE_MAJOR = Number(process.versions.node.split('.')[0])
+const JS_EXEC_SUPPORTED = NODE_MAJOR >= 22
+
 const CLI_MATRIX = [
   ['wasm', 'python3 (CLI default)', 'python3 -c "print(6*7)"', '42'],
-  ['wasm', 'js-exec (CLI default)', 'echo "console.log(6*7)" > s.js && js-exec s.js', '42'],
+  ...(JS_EXEC_SUPPORTED
+    ? [['wasm', 'js-exec (CLI default)', 'echo "console.log(6*7)" > s.js && js-exec s.js', '42']]
+    : []),
 ]
 
 // Capabilities backed by optionalDependencies (native addons). Both outcomes are
@@ -178,6 +189,9 @@ async function runOptional(target, [backend, label, command, expected, missing])
 console.log(`shell matrix via ${adapter}\n`)
 for (const testCase of MATRIX) await run(agent, testCase)
 for (const testCase of CLI_MATRIX) await run(cliConfigured, testCase)
+if (!JS_EXEC_SUPPORTED) {
+  console.log(`- [wasm] js-exec skipped — needs Node >=22, running ${process.versions.node}`)
+}
 for (const testCase of OPTIONAL_MATRIX) await runOptional(agent, testCase)
 
 // virtualBash: false must actually drop the tool — it previously did not, which

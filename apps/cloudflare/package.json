@@ -9,8 +9,7 @@
     "db:setup": "wrangler d1 execute nanocodana-files --local --file=./schema.sql",
     "db:files": "wrangler d1 execute nanocodana-files --local --command=\"SELECT path, length(content) AS bytes FROM files ORDER BY path\"",
     "bundle": "wrangler deploy --dry-run --outdir=dist-worker",
-    "deploy": "wrangler deploy",
-    "build": "npm run bundle"
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

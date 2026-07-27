@@ -87,6 +87,12 @@ jobs:
   # nothing. `packaging.test.mjs` asserts the vendored shell has no node:
   # imports; this asserts the thing that actually matters — that workerd boots
   # and core loads inside it.
+  #
+  # It is a separate job, on 22, because wrangler requires Node >=22 while the
+  # build matrix above covers 20 as well — apps/cloudflare deliberately has no
+  # `build` script so that `npm run build -ws` does not drag wrangler into the
+  # Node 20 job. The packages themselves support 20.18.1+; only this dev-time
+  # example needs 22.
   worker:
     runs-on: ubuntu-latest
     steps:

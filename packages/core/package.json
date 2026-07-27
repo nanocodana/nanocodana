@@ -16,7 +16,8 @@
   },
   "scripts": {
     "build": "tsc && node build/bundle-shell.mjs",
-    "dev": "node build/bundle-shell.mjs && tsc --watch"
+    "dev": "node build/bundle-shell.mjs && tsc --watch",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@ai-sdk-tool/parser": "^4.1.20",

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "streamdown/styles.css";
 
@@ -37,6 +38,19 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        {/*
+          Vercel Web Analytics. Renders nothing and injects a script that only
+          loads on Vercel, so local runs and any other host are unaffected.
+
+          The builder (sharables.ai) and every shared app (<id>.sharable.app)
+          are one project behind one middleware, so both land in the same
+          dashboard. They are told apart by path: the builder is "/", a shared
+          app is "/preview" — the middleware rewrites every share subdomain
+          there. Read the top-pages panel, not the total, or "people building"
+          and "people viewing someone else's app" are one indistinguishable
+          number.
+        */}
+        <Analytics />
       </body>
     </html>
   );
